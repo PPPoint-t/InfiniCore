@@ -1,13 +1,12 @@
 #include "rope_kunlun.h"
 #include "../../../devices/kunlun/kunlun_handle.h"
-#include "../../../devices/kunlun/kunlun_type.h"
 #include <memory>
 
 void RoPEF32I32F32(void *destination, const void *source,
                    const void *pos_ids, const void *sin_table, const void *cos_table,
-                   kunlun_size_t seqlen, kunlun_size_t nhead, kunlun_size_t dhead,
-                   kunlun_ptrdiff_t x_stride_seqlen, kunlun_ptrdiff_t x_stride_nhead,
-                   kunlun_ptrdiff_t y_stride_seqlen, kunlun_ptrdiff_t y_stride_nhead,
+                   size_t seqlen, size_t nhead, size_t dhead,
+                   long x_stride_seqlen, long x_stride_nhead,
+                   long y_stride_seqlen, long y_stride_nhead,
                    XPUStream stream);
 
 namespace op::rope::kunlun {
@@ -52,13 +51,13 @@ infiniStatus_t Descriptor::calculate(
     const void *sin_table,
     const void *cos_table,
     void *stream) const {
-    kunlun_size_t seqlen = (kunlun_size_t)_info.seqlen;
-    kunlun_size_t nhead = (kunlun_size_t)_info.nhead;
-    kunlun_size_t dhead = (kunlun_size_t)_info.dhead;
-    kunlun_ptrdiff_t x_stride_seqlen = (kunlun_ptrdiff_t)_info.x_stride_seqlen;
-    kunlun_ptrdiff_t x_stride_nhead = (kunlun_ptrdiff_t)_info.x_stride_nhead;
-    kunlun_ptrdiff_t y_stride_seqlen = (kunlun_ptrdiff_t)_info.y_stride_seqlen;
-    kunlun_ptrdiff_t y_stride_nhead = (kunlun_ptrdiff_t)_info.y_stride_nhead;
+    size_t seqlen = (size_t)_info.seqlen;
+    size_t nhead = (size_t)_info.nhead;
+    size_t dhead = (size_t)_info.dhead;
+    long x_stride_seqlen = (long)_info.x_stride_seqlen;
+    long x_stride_nhead = (long)_info.x_stride_nhead;
+    long y_stride_seqlen = (long)_info.y_stride_seqlen;
+    long y_stride_nhead = (long)_info.y_stride_nhead;
     if (_info.data_type == INFINI_DTYPE_F32 && _info.pos_type == INFINI_DTYPE_U32) {
         RoPEF32I32F32(y, x,
                       pos_ids, sin_table, cos_table,

@@ -1,17 +1,17 @@
 #ifndef __ROPE_KUNLUN_KERNEL_XPU__
 #define __ROPE_KUNLUN_KERNEL_XPU__
 
-#include "../../../devices/kunlun/kunlun_common.h"
+#include "../../../devices/kunlun/kunlun_kernel_common.h"
 
 template <typename T, typename Tindex, typename Tangle>
 __global__ void RoPEKernel(T *destination, const T *source, 
                 const Tindex *pos_ids, const Tangle *sin_table, const Tangle *cos_table, 
-                kunlun_size_t seqlen,  kunlun_size_t nhead, kunlun_size_t dhead,
-                kunlun_ptrdiff_t x_stride_seqlen, kunlun_ptrdiff_t x_stride_nhead,
-                kunlun_ptrdiff_t y_stride_seqlen, kunlun_ptrdiff_t y_stride_nhead,
+                size_t seqlen,  size_t nhead, size_t dhead,
+                long x_stride_seqlen, long x_stride_nhead,
+                long y_stride_seqlen, long y_stride_nhead,
                 XPUStream stream){
     //ndim = 3
-    kunlun_size_t other_size = seqlen * nhead;
+    size_t other_size = seqlen * nhead;
 
     int cid = core_id();
     int ncores = core_num();
@@ -72,9 +72,9 @@ __global__ void RoPEKernel(T *destination, const T *source,
 template <typename T, typename Tindex, typename Tangle>
 void RoPE(void *destination, const void *source, 
                 const void *pos_ids, const void *sin_table, const void *cos_table, 
-                kunlun_size_t seqlen,  kunlun_size_t nhead, kunlun_size_t dhead,
-                kunlun_ptrdiff_t x_stride_seqlen, kunlun_ptrdiff_t x_stride_nhead,
-                kunlun_ptrdiff_t y_stride_seqlen, kunlun_ptrdiff_t y_stride_nhead,
+                size_t seqlen,  size_t nhead, size_t dhead,
+                long x_stride_seqlen, long x_stride_nhead,
+                long y_stride_seqlen, long y_stride_nhead,
                 XPUStream stream){
     RoPEKernel<T, Tindex, Tangle><<<8, 64, stream>>>((T *)destination, (T *)source, 
                 (Tindex *)pos_ids, (Tangle *)sin_table, (Tangle *)cos_table, 
@@ -86,9 +86,9 @@ void RoPE(void *destination, const void *source,
 }
 void RoPEF32I32F32(void *destination, const void *source, 
                 const void *pos_ids, const void *sin_table, const void *cos_table, 
-                kunlun_size_t seqlen,  kunlun_size_t nhead, kunlun_size_t dhead,
-                kunlun_ptrdiff_t x_stride_seqlen, kunlun_ptrdiff_t x_stride_nhead,
-                kunlun_ptrdiff_t y_stride_seqlen, kunlun_ptrdiff_t y_stride_nhead,
+                size_t seqlen,  size_t nhead, size_t dhead,
+                long x_stride_seqlen, long x_stride_nhead,
+                long y_stride_seqlen, long y_stride_nhead,
                 XPUStream stream){
     RoPE<float, uint32_t, float>(destination, source, 
                 pos_ids, sin_table, cos_table, 

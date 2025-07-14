@@ -42,7 +42,7 @@ class LeakyReLUTestCase(InfiniopTestCase):
         test_writer.add_tensor(
             test_writer.gguf_key("output"),
             output.numpy(),
-            raw_dtype=gguf.GGMLQuantizationType.F64,
+            raw_dtype=ggml_dtype,
         )
 
 if __name__ == "__main__":

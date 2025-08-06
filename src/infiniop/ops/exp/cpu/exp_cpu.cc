@@ -13,13 +13,13 @@ infiniStatus_t Descriptor::create(
     auto handle = reinterpret_cast<device::cpu::Handle *>(handle_);
     auto dtype = out_desc->dtype();
 
-    const auto &x_desc = input_desc_vec.at(0);
-    const auto &y_shape = out_desc->shape();
-    const auto &x_shape = x_desc->shape();
+    const auto &input_desc = input_desc_vec.at(0);
+    const auto &output_shape = out_desc->shape();
+    const auto &input_shape = input_desc->shape();
 
     CHECK_DTYPE(dtype, INFINI_DTYPE_F16, INFINI_DTYPE_F32, INFINI_DTYPE_F64, INFINI_DTYPE_BF16);
 
-    CHECK_SAME_SHAPE(y_shape, x_shape);
+    CHECK_SAME_SHAPE(output_shape, input_shape);
 
     // create CPU elementwise descriptor
     CREATE_ELEMENTWISE_CPU_DESCRIPTOR(handle, dtype, out_desc, input_desc_vec);

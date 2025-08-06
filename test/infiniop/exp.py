@@ -39,11 +39,11 @@ _TEST_CASES_ = [
 
 class Inplace(Enum):
     OUT_OF_PLACE = auto()
-    INPLACE_A    = auto()
+    INPLACE_INPUT    = auto()
 
 _INPLACE = [
     Inplace.OUT_OF_PLACE, 
-    Inplace.INPLACE_A,
+    Inplace.INPLACE_INPUT,
 ]
 
 _TEST_CASES = [
@@ -66,9 +66,9 @@ NUM_PRERUN  = 10
 NUM_ITERATIONS = 1000
 
 
-def exp(y, x):
-    # y.copy_(torch.exp(x))
-    torch.exp(x, out=y)
+def exp(output, input):
+    # output.copy_(torch.exp(input))
+    torch.exp(input, out=output)
 
 
 def test(
@@ -82,7 +82,7 @@ def test(
     sync=None,
 ):
     input = TestTensor(shape, input_stride, dtype, device)
-    if inplace == Inplace.INPLACE_A:
+    if inplace == Inplace.INPLACE_INPUT:
         if input_stride != output_stride:
             return
         output = input

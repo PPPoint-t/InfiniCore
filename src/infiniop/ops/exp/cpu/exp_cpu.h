@@ -12,8 +12,8 @@ public:
     static constexpr size_t num_inputs = 1;
 
     template <typename T>
-    T operator()(const T &x) const {
-        return std::exp(x);
+    T operator()(const T &input) const {
+        return std::exp(input);
     }
 } ExpOp;
 } // namespace op::exp::cpu

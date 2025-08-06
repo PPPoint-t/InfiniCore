@@ -15,16 +15,16 @@
 __C infiniStatus_t infiniopCreateExpDescriptor(
     infiniopHandle_t handle,
     infiniopExpDescriptor_t *desc_ptr,
-    infiniopTensorDescriptor_t y_desc,
-    infiniopTensorDescriptor_t x_desc) {
+    infiniopTensorDescriptor_t output_desc,
+    infiniopTensorDescriptor_t input_desc) {
 
 #define CREATE(CASE, NAMESPACE)                                             \
     case CASE:                                                              \
         return op::exp::NAMESPACE::Descriptor::create(                      \
             handle,                                                         \
             reinterpret_cast<op::exp::NAMESPACE::Descriptor **>(desc_ptr),  \
-            y_desc,                                                         \
-            {x_desc})                                                       \
+            output_desc,                                                         \
+            {input_desc})                                                       \
 
     switch (handle->device) {
 
@@ -80,14 +80,14 @@ __C infiniStatus_t infiniopExp(
     infiniopExpDescriptor_t desc,
     void *workspace,
     size_t workspace_size,
-    void *y,
-    const void *x,
+    void *output,
+    const void *input,
     void *stream) {
 
 #define CALCULATE(CASE, NAMESPACE)                                            \
     case CASE:                                                                \
         return reinterpret_cast<const op::exp::NAMESPACE::Descriptor *>(desc) \
-            ->calculate(workspace, workspace_size, y, {x}, stream)
+            ->calculate(workspace, workspace_size, output, {input}, stream)
 
     switch (desc->device_type) {
 

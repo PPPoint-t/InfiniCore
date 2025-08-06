@@ -26,6 +26,7 @@ def run_tests(args):
         "swiglu.py",
         "exp.py",
         "sin.py"
+        "cos.py"
     ]:
         result = subprocess.run(
             f"python {test} {args} --debug", text=True, encoding="utf-8", shell=True

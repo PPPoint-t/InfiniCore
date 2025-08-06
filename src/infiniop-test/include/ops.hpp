@@ -18,6 +18,7 @@ DECLARE_INFINIOP_TEST(rearrange)
 DECLARE_INFINIOP_TEST(sub)
 DECLARE_INFINIOP_TEST(exp)
 DECLARE_INFINIOP_TEST(sin)
+DECLARE_INFINIOP_TEST(cos)
 
 #define REGISTER_INFINIOP_TEST(name)                      \
     {                                                     \
@@ -47,6 +48,7 @@ DECLARE_INFINIOP_TEST(sin)
         REGISTER_INFINIOP_TEST(sub)            \
         REGISTER_INFINIOP_TEST(exp)            \
         REGISTER_INFINIOP_TEST(sin)            \
+        REGISTER_INFINIOP_TEST(cos)            \
     }
 
 namespace infiniop_test {

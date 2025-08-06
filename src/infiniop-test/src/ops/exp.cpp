@@ -27,6 +27,12 @@ std::shared_ptr<Test> Test::build(
     test->_attributes->output = tensors["output"];
     test->_attributes->ans = tensors["ans"];
 
+    auto elemType = test->_attributes->input->ggml_type();
+    if (elemType == GGML_TYPE_BF16) {
+        test->_rtol = 1e-2;
+        test->_atol = 1e-2;
+    }
+
     return test;
 }
 

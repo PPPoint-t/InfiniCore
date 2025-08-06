@@ -17,6 +17,7 @@
 #include "infiniop/ops/sub.h"
 #include "infiniop/ops/swiglu.h"
 #include "infiniop/ops/exp.h"
+#include "infiniop/ops/sin.h"
 #include "infiniop/tensor_descriptor.h"
 
 #endif // __INFINIOP_API_H__

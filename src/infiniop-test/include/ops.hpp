@@ -20,6 +20,7 @@ DECLARE_INFINIOP_TEST(exp)
 DECLARE_INFINIOP_TEST(sin)
 DECLARE_INFINIOP_TEST(cos)
 DECLARE_INFINIOP_TEST(tanh)
+DECLARE_INFINIOP_TEST(hardswish)
 
 #define REGISTER_INFINIOP_TEST(name)                      \
     {                                                     \
@@ -51,6 +52,7 @@ DECLARE_INFINIOP_TEST(tanh)
         REGISTER_INFINIOP_TEST(sin)            \
         REGISTER_INFINIOP_TEST(cos)            \
         REGISTER_INFINIOP_TEST(tanh)           \
+        REGISTER_INFINIOP_TEST(hardswish)      \
     }
 
 namespace infiniop_test {

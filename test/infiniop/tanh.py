@@ -66,9 +66,9 @@ NUM_PRERUN  = 10
 NUM_ITERATIONS = 1000
 
 
-def cos(output, input):
-    # output.copy_(torch.cos(input))
-    torch.cos(input, out=output)
+def tanh(output, input):
+    # output.copy_(torch.tanh(input))
+    torch.tanh(input, out=output)
 
 
 def test(
@@ -93,18 +93,18 @@ def test(
         return
 
     print(
-        f"Testing Cos on {InfiniDeviceNames[device]} with shape:{shape} input_stride:{input_stride} output_stride:{output_stride} "
+        f"Testing Tanh on {InfiniDeviceNames[device]} with shape:{shape} input_stride:{input_stride} output_stride:{output_stride} "
         f"dtype:{InfiniDtypeNames[dtype]} inplace:{inplace}"
     )
 
-    cos(output.torch_tensor(), input.torch_tensor())
+    tanh(output.torch_tensor(), input.torch_tensor())
 
     if sync is not None:
         sync()
 
     descriptor = infiniopOperatorDescriptor_t()
     check_error(
-        LIBINFINIOP.infiniopCreateCosDescriptor(
+        LIBINFINIOP.infiniopCreateTanhDescriptor(
             handle,
             ctypes.byref(descriptor),
             output.descriptor,
@@ -118,15 +118,15 @@ def test(
 
     workspace_size = c_uint64(0)
     check_error(
-        LIBINFINIOP.infiniopGetCosWorkspaceSize(
+        LIBINFINIOP.infiniopGetTanhWorkspaceSize(
             descriptor, ctypes.byref(workspace_size)
         )
     )
     workspace = TestWorkspace(workspace_size.value, output.device)
 
-    def lib_cos():
+    def lib_tanh():
         check_error(
-            LIBINFINIOP.infiniopCos(
+            LIBINFINIOP.infiniopTanh(
                 descriptor,
                 workspace.data(),
                 workspace_size.value,
@@ -136,21 +136,21 @@ def test(
             )
         )
 
-    lib_cos()
+    lib_tanh()
 
     atol, rtol = get_tolerance(_TOLERANCE_MAP, dtype)
     if DEBUG:
         debug(output.actual_tensor(), output.torch_tensor(), atol=atol, rtol=rtol)
-
+        
     assert torch.allclose(output.actual_tensor(), output.torch_tensor(), atol=atol, rtol=rtol)
 
     # Profiling workflow
     if PROFILE:
         # fmt: off
-        profile_operation("PyTorch", lambda: cos(output.torch_tensor(), input.torch_tensor()), device, NUM_PRERUN, NUM_ITERATIONS)
-        profile_operation("    lib", lambda: lib_cos(), device, NUM_PRERUN, NUM_ITERATIONS)
+        profile_operation("PyTorch", lambda: tanh(output.torch_tensor(), input.torch_tensor()), device, NUM_PRERUN, NUM_ITERATIONS)
+        profile_operation("    lib", lambda: lib_tanh(), device, NUM_PRERUN, NUM_ITERATIONS)
         # fmt: on
-    check_error(LIBINFINIOP.infiniopDestroyCosDescriptor(descriptor))
+    check_error(LIBINFINIOP.infiniopDestroyTanhDescriptor(descriptor))
 
 
 if __name__ == "__main__":

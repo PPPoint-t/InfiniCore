@@ -27,6 +27,7 @@ def run_tests(args):
         "exp.py",
         "sin.py"
         "cos.py"
+        "tanh.py"
     ]:
         result = subprocess.run(
             f"python {test} {args} --debug", text=True, encoding="utf-8", shell=True

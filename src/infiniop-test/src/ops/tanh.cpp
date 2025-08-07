@@ -4,7 +4,7 @@
 #include <iomanip>
 #include <iostream>
 
-namespace infiniop_test::cos {
+namespace infiniop_test::tanh {
 struct Test::Attributes {
     std::shared_ptr<Tensor> input;
     std::shared_ptr<Tensor> output;
@@ -38,20 +38,20 @@ std::shared_ptr<Test> Test::build(
 
 std::shared_ptr<infiniop_test::Result> Test::run(
     infiniopHandle_t handle, infiniDevice_t device, int device_id, size_t warm_ups, size_t iterations) {
-    infiniopCosDescriptor_t op_desc;
+    infiniopTanhDescriptor_t op_desc;
     auto input = _attributes->input->to(device, device_id);
     auto output = _attributes->output->to(device, device_id);
-    CHECK_OR(infiniopCreateCosDescriptor(handle, &op_desc,
+    CHECK_OR(infiniopCreateTanhDescriptor(handle, &op_desc,
                                          output->desc(),
                                          input->desc()),
              return TEST_FAILED(OP_CREATION_FAILED, "Failed to create op descriptor."));
     size_t workspace_size;
-    CHECK_OR(infiniopGetCosWorkspaceSize(op_desc, &workspace_size),
+    CHECK_OR(infiniopGetTanhWorkspaceSize(op_desc, &workspace_size),
              return TEST_FAILED(OP_CREATION_FAILED, "Failed to get workspace size."));
     void *workspace;
     CHECK_OR(infinirtMalloc(&workspace, workspace_size),
              return TEST_FAILED(OP_CREATION_FAILED, "Failed to allocate workspace."));
-    CHECK_OR(infiniopCos(op_desc, workspace, workspace_size,
+    CHECK_OR(infiniopTanh(op_desc, workspace, workspace_size,
                          output->data(),
                          input->data(),
                          nullptr),
@@ -67,7 +67,7 @@ std::shared_ptr<infiniop_test::Result> Test::run(
 
     elapsed_time = benchmark(
         [=]() {
-            infiniopCos(
+            infiniopTanh(
                 op_desc, workspace, workspace_size,
                 output->data(),
                 input->data(),
@@ -103,4 +103,4 @@ std::string Test::toString() const {
 Test::~Test() {
     delete _attributes;
 }
-}  // namespace infiniop_test::cos
+}  // namespace infiniop_test::tanh

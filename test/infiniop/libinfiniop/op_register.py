@@ -584,6 +584,38 @@ def cos_(lib):
     ]
 
 @OpRegister.operator
+def leakyrelu_(lib):
+    lib.infiniopCreateLeakyreluDescriptor.restype = c_int32
+    lib.infiniopCreateLeakyreluDescriptor.argtypes = [
+        infiniopHandle_t,
+        POINTER(infiniopOperatorDescriptor_t),
+        infiniopTensorDescriptor_t,
+        infiniopTensorDescriptor_t,
+        c_float,
+    ]
+
+    lib.infiniopGetLeakyreluWorkspaceSize.restype = c_int32
+    lib.infiniopGetLeakyreluWorkspaceSize.argtypes = [
+        infiniopOperatorDescriptor_t,
+        POINTER(c_size_t),
+    ]
+
+    lib.infiniopLeakyrelu.restype = c_int32
+    lib.infiniopLeakyrelu.argtypes = [
+        infiniopOperatorDescriptor_t,
+        c_void_p,
+        c_size_t,
+        c_void_p,
+        c_void_p,
+        c_void_p,
+    ]
+
+    lib.infiniopDestroyLeakyreluDescriptor.restype = c_int32
+    lib.infiniopDestroyLeakyreluDescriptor.argtypes = [
+        infiniopOperatorDescriptor_t,
+    ]
+
+@OpRegister.operator
 def tanh_(lib):
     lib.infiniopCreateTanhDescriptor.restype = c_int32
     lib.infiniopCreateTanhDescriptor.argtypes = [
@@ -643,4 +675,5 @@ def hardswish_(lib):
     lib.infiniopDestroyHardswishDescriptor.restype = c_int32
     lib.infiniopDestroyHardswishDescriptor.argtypes = [
         infiniopOperatorDescriptor_t,
-    ]    
+    ]
+    

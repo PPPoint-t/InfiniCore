@@ -19,6 +19,7 @@
 #include "infiniop/ops/exp.h"
 #include "infiniop/ops/sin.h"
 #include "infiniop/ops/cos.h"
+#include "infiniop/ops/leakyrelu.h"
 #include "infiniop/ops/tanh.h"
 #include "infiniop/ops/hardswish.h"
 #include "infiniop/tensor_descriptor.h"

@@ -27,6 +27,7 @@ def run_tests(args):
         "exp.py",
         "sin.py"
         "cos.py"
+        "leakyrelu.py"
         "tanh.py"
         "hardswish.py"
     ]:

@@ -19,6 +19,7 @@ DECLARE_INFINIOP_TEST(sub)
 DECLARE_INFINIOP_TEST(exp)
 DECLARE_INFINIOP_TEST(sin)
 DECLARE_INFINIOP_TEST(cos)
+DECLARE_INFINIOP_TEST(leakyrelu)
 DECLARE_INFINIOP_TEST(tanh)
 DECLARE_INFINIOP_TEST(hardswish)
 
@@ -51,6 +52,7 @@ DECLARE_INFINIOP_TEST(hardswish)
         REGISTER_INFINIOP_TEST(exp)            \
         REGISTER_INFINIOP_TEST(sin)            \
         REGISTER_INFINIOP_TEST(cos)            \
+        REGISTER_INFINIOP_TEST(leakyrelu)      \
         REGISTER_INFINIOP_TEST(tanh)           \
         REGISTER_INFINIOP_TEST(hardswish)      \
     }

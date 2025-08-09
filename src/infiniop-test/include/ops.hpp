@@ -21,6 +21,7 @@ DECLARE_INFINIOP_TEST(sin)
 DECLARE_INFINIOP_TEST(cos)
 DECLARE_INFINIOP_TEST(leakyrelu)
 DECLARE_INFINIOP_TEST(tanh)
+DECLARE_INFINIOP_TEST(sigmoid_backward)
 DECLARE_INFINIOP_TEST(hardswish)
 
 #define REGISTER_INFINIOP_TEST(name)                      \
@@ -54,6 +55,7 @@ DECLARE_INFINIOP_TEST(hardswish)
         REGISTER_INFINIOP_TEST(cos)            \
         REGISTER_INFINIOP_TEST(leakyrelu)      \
         REGISTER_INFINIOP_TEST(tanh)           \
+        REGISTER_INFINIOP_TEST(sigmoid_backward)\
         REGISTER_INFINIOP_TEST(hardswish)      \
     }
 

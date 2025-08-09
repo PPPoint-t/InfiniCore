@@ -21,6 +21,7 @@
 #include "infiniop/ops/cos.h"
 #include "infiniop/ops/leakyrelu.h"
 #include "infiniop/ops/tanh.h"
+#include "infiniop/ops/sigmoid_backward.h"
 #include "infiniop/ops/hardswish.h"
 #include "infiniop/tensor_descriptor.h"
 

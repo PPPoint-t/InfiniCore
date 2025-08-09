@@ -647,6 +647,39 @@ def tanh_(lib):
     ]
 
 @OpRegister.operator
+def sigmoid_backward_(lib):
+    lib.infiniopCreateSigmoidBackwardDescriptor.restype = c_int32
+    lib.infiniopCreateSigmoidBackwardDescriptor.argtypes = [
+        infiniopHandle_t,
+        POINTER(infiniopOperatorDescriptor_t),
+        infiniopTensorDescriptor_t,
+        infiniopTensorDescriptor_t,
+        infiniopTensorDescriptor_t,
+    ]
+
+    lib.infiniopGetSigmoidBackwardWorkspaceSize.restype = c_int32
+    lib.infiniopGetSigmoidBackwardWorkspaceSize.argtypes = [
+        infiniopOperatorDescriptor_t,
+        POINTER(c_size_t),
+    ]
+
+    lib.infiniopSigmoidBackward.restype = c_int32
+    lib.infiniopSigmoidBackward.argtypes = [
+        infiniopOperatorDescriptor_t,
+        c_void_p,
+        c_size_t,
+        c_void_p,
+        c_void_p,
+        c_void_p,
+        c_void_p,
+    ]
+
+    lib.infiniopDestroySigmoidBackwardDescriptor.restype = c_int32
+    lib.infiniopDestroySigmoidBackwardDescriptor.argtypes = [
+        infiniopOperatorDescriptor_t,
+    ]
+
+@OpRegister.operator
 def hardswish_(lib):
     lib.infiniopCreateHardswishDescriptor.restype = c_int32
     lib.infiniopCreateHardswishDescriptor.argtypes = [

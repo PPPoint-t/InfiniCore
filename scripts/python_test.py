@@ -29,6 +29,7 @@ def run_tests(args):
         "cos.py"
         "leakyrelu.py"
         "tanh.py"
+        "sigmoid_backward.py"
         "hardswish.py"
     ]:
         result = subprocess.run(

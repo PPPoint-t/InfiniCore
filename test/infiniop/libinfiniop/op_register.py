@@ -709,4 +709,34 @@ def hardswish_(lib):
     lib.infiniopDestroyHardswishDescriptor.argtypes = [
         infiniopOperatorDescriptor_t,
     ]
-    
+
+@OpRegister.operator
+def cast_(lib):
+    lib.infiniopCreateCastDescriptor.restype = c_int32
+    lib.infiniopCreateCastDescriptor.argtypes = [
+        infiniopHandle_t,
+        POINTER(infiniopOperatorDescriptor_t),
+        infiniopTensorDescriptor_t,
+        infiniopTensorDescriptor_t,
+    ]
+
+    lib.infiniopGetCastWorkspaceSize.restype = c_int32
+    lib.infiniopGetCastWorkspaceSize.argtypes = [
+        infiniopOperatorDescriptor_t,
+        POINTER(c_size_t),
+    ]
+
+    lib.infiniopCast.restype = c_int32
+    lib.infiniopCast.argtypes = [
+        infiniopOperatorDescriptor_t,
+        c_void_p,
+        c_size_t,
+        c_void_p,
+        c_void_p,
+        c_void_p,
+    ]
+
+    lib.infiniopDestroyCastDescriptor.restype = c_int32
+    lib.infiniopDestroyCastDescriptor.argtypes = [
+        infiniopOperatorDescriptor_t,
+    ]

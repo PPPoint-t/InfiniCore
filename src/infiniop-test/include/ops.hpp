@@ -24,6 +24,7 @@ DECLARE_INFINIOP_TEST(tanh)
 DECLARE_INFINIOP_TEST(sigmoid_backward)
 DECLARE_INFINIOP_TEST(hardswish)
 DECLARE_INFINIOP_TEST(cast)
+DECLARE_INFINIOP_TEST(where)
 
 #define REGISTER_INFINIOP_TEST(name)                      \
     {                                                     \
@@ -59,6 +60,7 @@ DECLARE_INFINIOP_TEST(cast)
         REGISTER_INFINIOP_TEST(sigmoid_backward)\
         REGISTER_INFINIOP_TEST(hardswish)      \
         REGISTER_INFINIOP_TEST(cast)           \
+        REGISTER_INFINIOP_TEST(where)          \
     }
 
 namespace infiniop_test {

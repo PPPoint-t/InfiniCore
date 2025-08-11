@@ -24,6 +24,7 @@
 #include "infiniop/ops/sigmoid_backward.h"
 #include "infiniop/ops/hardswish.h"
 #include "infiniop/ops/cast.h"
+#include "infiniop/ops/where.h"
 #include "infiniop/tensor_descriptor.h"
 
 #endif // __INFINIOP_API_H__

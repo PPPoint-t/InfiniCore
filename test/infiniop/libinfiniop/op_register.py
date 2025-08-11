@@ -740,3 +740,39 @@ def cast_(lib):
     lib.infiniopDestroyCastDescriptor.argtypes = [
         infiniopOperatorDescriptor_t,
     ]
+
+
+@OpRegister.operator
+def where_(lib):
+    lib.infiniopCreateWhereDescriptor.restype = c_int32
+    lib.infiniopCreateWhereDescriptor.argtypes = [
+        infiniopHandle_t,
+        POINTER(infiniopOperatorDescriptor_t),
+        infiniopTensorDescriptor_t,
+        infiniopTensorDescriptor_t,
+        infiniopTensorDescriptor_t,
+        infiniopTensorDescriptor_t,
+    ]
+
+    lib.infiniopGetWhereWorkspaceSize.restype = c_int32
+    lib.infiniopGetWhereWorkspaceSize.argtypes = [
+        infiniopOperatorDescriptor_t,
+        POINTER(c_size_t),
+    ]
+
+    lib.infiniopWhere.restype = c_int32
+    lib.infiniopWhere.argtypes = [
+        infiniopOperatorDescriptor_t,
+        c_void_p,
+        c_size_t,
+        c_void_p,
+        c_void_p,
+        c_void_p,
+        c_void_p,
+        c_void_p,
+    ]
+
+    lib.infiniopDestroyWhereDescriptor.restype = c_int32
+    lib.infiniopDestroyWhereDescriptor.argtypes = [
+        infiniopOperatorDescriptor_t,
+    ]    

@@ -57,6 +57,8 @@ struct Algo {
         void *output_, const void *input_, size_t n,
         const op::cast::CastInfo &info, void *stream_) const {
         int bs = 0, grid = 0;
+        cudaError_t propErr;
+        int device_id_local = 0;
         using DevTout = typename MapCudaType<ToutHost>::Type;
         using DevTin  = typename MapCudaType<TinHost>::Type;
 
@@ -107,6 +109,20 @@ struct Algo {
         if (err != cudaSuccess) goto cleanup;
 
         bs = block_size > 0 ? block_size : 256;
+        device_id_local = 0;
+        propErr = cudaGetDevice(&device_id_local);
+        if (propErr == cudaSuccess) {
+            cudaDeviceProp prop;
+            if (cudaGetDeviceProperties(&prop, device_id_local) == cudaSuccess) {
+                bs = std::min(bs, static_cast<int>(prop.maxThreadsPerBlock) / 2);
+            } else {
+                if (bs > 256) bs = 256;
+            }
+        } else {
+            if (bs > 256) bs = 256;
+        }
+
+        if (bs <= 0) bs = 256;
         grid = static_cast<int>((n + bs - 1) / bs);
         if (grid <= 0) grid = 1;
 

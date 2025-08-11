@@ -1,12 +1,12 @@
-#include "../../../devices/nvidia/nvidia_common.cuh"
-#include "leakyrelu_nvidia.cuh"
-
-#include "../../../devices/nvidia/nvidia_kernel_common.cuh"
-#include <cub/block/block_reduce.cuh>
-
-#include "../../../reduce/cuda/reduce.cuh"
-
 #include "../cuda/kernel.cuh"
+#include "../../../devices/nvidia/nvidia_handle.cuh"
+#include "../leakyrelu.h"
+#include "leakyrelu_nvidia.cuh"
+#include "../info.h"
+#include <cuda_runtime.h>
+#include <algorithm>
+#include <vector>
+#include <cstring>
 
 namespace op::leakyrelu::nvidia {
 
@@ -18,131 +18,154 @@ Descriptor::~Descriptor() {
     delete _opaque;
 }
 
+template <typename T> struct MapCudaType { using Type = T; };
+template <> struct MapCudaType<fp16_t> { using Type = half; };
+#if defined(__CUDA_BF16_TYPES_EXIST__) || defined(__CUDA_ARCH__)
+template <> struct MapCudaType<bf16_t> { using Type = __nv_bfloat16; };
+#endif
+
 infiniStatus_t Descriptor::create(
-    infiniopHandle_t handle,
+    infiniopHandle_t handle_,
     Descriptor **desc_ptr,
-    infiniopTensorDescriptor_t output_desc,
-    infiniopTensorDescriptor_t input_desc,
+    infiniopTensorDescriptor_t out_desc,
+    infiniopTensorDescriptor_t in_desc,
     float negative_slope) {
+    auto handle = reinterpret_cast<device::nvidia::Handle *>(handle_);
 
-    auto result = LeakyreluInfo::create(output_desc, input_desc, negative_slope);
-    CHECK_RESULT(result);
-    auto info = result.take();
+    auto info_r = LeakyReLUInfo::create(out_desc, in_desc, negative_slope);
+    CHECK_RESULT(info_r);
+    auto info = info_r.take();
 
-    if (info.input_strides.back() != 1 || info.output_strides.back() != 1) {
-        return INFINI_STATUS_BAD_TENSOR_STRIDES;
-    }
+    size_t workspace_size = 0;
 
     *desc_ptr = new Descriptor(
-        new Opaque{ reinterpret_cast<device::nvidia::Handle *>(handle)->internal() },
-        std::move(info),
-        0,
+        info,
+        workspace_size,
+        new Opaque{handle->internal()},
         handle->device, handle->device_id);
 
     return INFINI_STATUS_SUCCESS;
 }
 
-// launch kernel with different block sizes; pick runtimeBlock = min(BLOCK_SIZE, device_maxThreads, HARD_CAP)
-// launch kernel with conservative compile-time BLOCK_SIZE and robust runtime caps
-template <unsigned int BLOCK_SIZE>
-infiniStatus_t launchKernel(
-    size_t numel,
-    void *y, ptrdiff_t stride_y,
-    const void *x, ptrdiff_t stride_x,
-    size_t dim,
-    infiniDtype_t atype,
-    float negative_slope,
-    cudaStream_t cuda_stream,
-    uint32_t device_maxThreads,
-    uint32_t device_maxBlocks) {
+size_t Descriptor::workspaceSize() const {
+    return _min_workspace_size;
+}
 
-    // Much more conservative HARD_CAP to avoid any device quirks.
-    // 256 是一个普遍安全且高效的选择。
-    constexpr uint32_t HARD_CAP = 256u;
+struct Algo {
+    int block_size;
 
-    uint32_t effective_device_maxThreads = device_maxThreads;
-    if (effective_device_maxThreads == 0 || effective_device_maxThreads > HARD_CAP) {
-        effective_device_maxThreads = HARD_CAP;
-    }
+    Algo(int bs = 256) : block_size(bs) {}
+    template <class TDev>
+    infiniStatus_t run(
+        void * workspace, size_t workspace_size,
+        void *output_, const void *input_, size_t n,
+        const op::leakyrelu::LeakyReLUInfo &info, void *stream_) const {
+        
+        int bs = 0, grid = 0;
+        cudaError_t propErr;
+        int device_id_local = 0;
+        using DevT = typename MapCudaType<TDev>::Type;
 
-    // choose runtime block size (<= compile-time BLOCK_SIZE and <= device cap)
-    uint32_t runtimeBlock = static_cast<uint32_t>(std::min<size_t>(BLOCK_SIZE, effective_device_maxThreads));
-    if (runtimeBlock == 0) return INFINI_STATUS_DEVICE_ARCHITECTURE_NOT_SUPPORTED;
+        auto out_dev = reinterpret_cast<DevT *>(output_);
+        auto in_dev  = reinterpret_cast<const DevT *>(input_);
+        auto stream = reinterpret_cast<cudaStream_t>(stream_);
 
-    // number of blocks needed, cap by device_maxBlocks
-    size_t blocks_needed = (numel + (size_t)runtimeBlock - 1) / static_cast<size_t>(runtimeBlock);
-    uint32_t grid = static_cast<uint32_t>(std::min(blocks_needed, static_cast<size_t>(device_maxBlocks)));
-    if (grid == 0) grid = 1;
+        int ndim = static_cast<int>(info.shape.size());
+        if (ndim == 0) {
+            return INFINI_STATUS_SUCCESS;
+        }
 
-    // Print diagnostics (stderr) to help debug resource issues
-    std::fprintf(stderr, "[leakyrelu launch] BLOCK_SIZE(template)=%u effective_device_maxThreads=%u runtimeBlock=%u blocks_needed=%zu grid=%u device_maxBlocks=%u numel=%zu dim=%zu stride_x=%td stride_y=%td\n",
-                 (unsigned)BLOCK_SIZE, effective_device_maxThreads, runtimeBlock, blocks_needed, grid, device_maxBlocks, numel, dim, stride_x, stride_y);
+        std::vector<size_t> h_shape(info.shape.begin(), info.shape.end());
+        std::vector<size_t> h_div(ndim);
+        h_div[ndim - 1] = 1;
+        for (int d = ndim - 2; d >= 0; --d) {
+            h_div[d] = h_div[d + 1] * h_shape[d + 1];
+        }
 
-#define LAUNCH(Tdata, Tcompute) \
-    leakyreluKernel<BLOCK_SIZE, Tcompute, Tdata><<<grid, runtimeBlock, 0, cuda_stream>>>( \
-        reinterpret_cast<Tdata *>(y), stride_y, reinterpret_cast<const Tdata *>(x), stride_x, dim, numel, negative_slope)
+        std::vector<long long> h_in_stride(ndim), h_out_stride(ndim);
+        for (int d = 0; d < ndim; ++d) {
+            h_in_stride[d] = static_cast<long long>(info.in_stride[d]);
+            h_out_stride[d] = static_cast<long long>(info.out_stride[d]);
+        }
 
-    if (atype == INFINI_DTYPE_F16) {
-        LAUNCH(half, float);
-    } else if (atype == INFINI_DTYPE_BF16) {
-        LAUNCH(__nv_bfloat16, float);
-    } else if (atype == INFINI_DTYPE_F32) {
-        LAUNCH(float, float);
-    } else if (atype == INFINI_DTYPE_F64) {
-        LAUNCH(double, double);
-    } else {
-        return INFINI_STATUS_BAD_TENSOR_DTYPE;
-    }
+        size_t *d_shape = nullptr;
+        size_t *d_div = nullptr;
+        long long *d_in_stride = nullptr;
+        long long *d_out_stride = nullptr;
 
-#undef LAUNCH
+        cudaError_t err = cudaSuccess;
 
-    // immediate check
-    cudaError_t err = cudaGetLastError();
-    if (err != cudaSuccess) {
-        std::fprintf(stderr, "leakyrelu kernel launch failed: %s\n", cudaGetErrorString(err));
+        err = cudaMalloc(reinterpret_cast<void **>(&d_shape), sizeof(size_t) * ndim);
+        if (err != cudaSuccess) goto cleanup;
+        err = cudaMalloc(reinterpret_cast<void **>(&d_div), sizeof(size_t) * ndim);
+        if (err != cudaSuccess) goto cleanup;
+        err = cudaMalloc(reinterpret_cast<void **>(&d_in_stride), sizeof(long long) * ndim);
+        if (err != cudaSuccess) goto cleanup;
+        err = cudaMalloc(reinterpret_cast<void **>(&d_out_stride), sizeof(long long) * ndim);
+        if (err != cudaSuccess) goto cleanup;
+        err = cudaMemcpyAsync(d_shape, h_shape.data(), sizeof(size_t) * ndim, cudaMemcpyHostToDevice, stream);
+        if (err != cudaSuccess) goto cleanup;
+        err = cudaMemcpyAsync(d_div, h_div.data(), sizeof(size_t) * ndim, cudaMemcpyHostToDevice, stream);
+        if (err != cudaSuccess) goto cleanup;
+        err = cudaMemcpyAsync(d_in_stride, h_in_stride.data(), sizeof(long long) * ndim, cudaMemcpyHostToDevice, stream);
+        if (err != cudaSuccess) goto cleanup;
+        err = cudaMemcpyAsync(d_out_stride, h_out_stride.data(), sizeof(long long) * ndim, cudaMemcpyHostToDevice, stream);
+        if (err != cudaSuccess) goto cleanup;
+
+        bs = block_size > 0 ? block_size : 256;
+        device_id_local = 0;
+        propErr = cudaGetDevice(&device_id_local);
+        if (propErr == cudaSuccess) {
+            cudaDeviceProp prop;
+            if (cudaGetDeviceProperties(&prop, device_id_local) == cudaSuccess) {
+                bs = std::min(bs, static_cast<int>(prop.maxThreadsPerBlock) / 2);
+            } else {
+                if (bs > 256) bs = 256;
+            }
+        } else {
+            if (bs > 256) bs = 256;
+        }
+
+        if (bs <= 0) bs = 256;
+        grid = static_cast<int>((n + bs - 1) / bs);
+        if (grid <= 0) grid = 1;
+
+        leakyrelu_kernel<DevT><<<grid, bs, 0, stream>>>(
+            out_dev, in_dev, n, info.negative_slope, d_shape, d_div, d_in_stride, d_out_stride, ndim);
+
+        err = cudaGetLastError();
+        if (err != cudaSuccess) goto cleanup;
+
+        err = cudaStreamSynchronize(stream);
+        if (err != cudaSuccess) goto cleanup;
+
+        cudaFree(d_shape);
+        cudaFree(d_div);
+        cudaFree(d_in_stride);
+        cudaFree(d_out_stride);
+        return INFINI_STATUS_SUCCESS;
+
+    cleanup:
+        cudaFree(d_shape);
+        cudaFree(d_div);
+        cudaFree(d_in_stride);
+        cudaFree(d_out_stride);
         return INFINI_STATUS_DEVICE_ARCHITECTURE_NOT_SUPPORTED;
     }
 
-    return INFINI_STATUS_SUCCESS;
-}
+};
 
 infiniStatus_t Descriptor::calculate(
-    void *workspace, size_t workspace_size,
-    void *y, const void *x,
+    void *workspace,
+    size_t workspace_size,
+    void *output,
+    const void *input,
     void *stream) const {
+    auto block_size = _opaque->internal->blockSizeX();
+    Calculate::calculate<Algo>(Algo{static_cast<int>(block_size)},
+        _info, workspace, workspace_size, output, input, stream);
 
-    (void)workspace;
-    (void)workspace_size;
-
-    size_t numel = _info.numel();
-    if (numel == 0) return INFINI_STATUS_SUCCESS;
-
-    auto cuda_stream = reinterpret_cast<cudaStream_t>(stream);
-    uint32_t device_maxBlocks = static_cast<uint32_t>(_opaque->internal->gridSizeX());
-    uint32_t device_maxThreads = static_cast<uint32_t>(_opaque->internal->maxThreadsPerBlock());
-
-    // Debug print device-reported capabilities
-    std::fprintf(stderr, "[leakyrelu calc] device_maxThreads(raw)=%u device_maxBlocks=%u\n", device_maxThreads, device_maxBlocks);
-
-    // Conservative hard cap used inside launchKernel (HARD_CAP=256)
-    auto stride_x = _info.input_strides[0];
-    auto stride_y = _info.output_strides[0];
-    auto dim = _info.ndim() > 0 ? _info.shape.back() : 1;
-
-    // Always instantiate a conservative compile-time BLOCK_SIZE (256)
-    // This avoids heavy register/shmem usage that some template instantiations may cause.
-    
-    if (_opaque->internal->maxThreadsPerBlock() == CUDA_BLOCK_SIZE_1024) {
-        CHECK_STATUS(launchKernel<CUDA_BLOCK_SIZE_1024>(numel, y, stride_y, x, stride_x, dim, _info.atype, _info.negative_slope, cuda_stream, device_maxThreads, device_maxBlocks));
-    } else if (_opaque->internal->maxThreadsPerBlock() == CUDA_BLOCK_SIZE_512) {
-        CHECK_STATUS(launchKernel<CUDA_BLOCK_SIZE_512>(numel, y, stride_y, x, stride_x, dim, _info.atype, _info.negative_slope, cuda_stream, device_maxThreads, device_maxBlocks));
-    } else if (_opaque->internal->maxThreadsPerBlock() == CUDA_BLOCK_SIZE_4096) {
-        CHECK_STATUS(launchKernel<CUDA_BLOCK_SIZE_4096>(numel, y, stride_y, x, stride_x, dim, _info.atype, _info.negative_slope, cuda_stream, device_maxThreads, device_maxBlocks));
-    } else {
-        return INFINI_STATUS_DEVICE_ARCHITECTURE_NOT_SUPPORTED;
-    }
     return INFINI_STATUS_SUCCESS;
 }
-
 
 } // namespace op::leakyrelu::nvidia

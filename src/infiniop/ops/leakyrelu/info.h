@@ -7,50 +7,41 @@
 
 namespace op::leakyrelu {
 
-class LeakyreluInfo {
-    LeakyreluInfo() = default;
+class LeakyReLUInfo {
+    LeakyReLUInfo() = default;
 
 public:
-    infiniDtype_t atype;
+    infiniDtype_t dt_in;
     std::vector<size_t> shape;
-    std::vector<ptrdiff_t> output_strides;
-    std::vector<ptrdiff_t> input_strides;
+    std::vector<ptrdiff_t> in_stride;
+    std::vector<ptrdiff_t> out_stride;
+    size_t n;
     float negative_slope;
 
-    size_t ndim() const { return shape.size(); }
-    size_t numel() const {
+    static utils::Result<LeakyReLUInfo> create(
+        infiniopTensorDescriptor_t out_desc,
+        infiniopTensorDescriptor_t in_desc,
+        float negative_slope) {
+
+        auto dt_raw = in_desc->dtype();
+        infiniDtype_t dt_in = dt_raw;
+
+        CHECK_DTYPE(dt_in, INFINI_DTYPE_F16, INFINI_DTYPE_BF16, INFINI_DTYPE_F32, INFINI_DTYPE_F64);
+
+        CHECK_OR_RETURN(out_desc->ndim() == in_desc->ndim(), INFINI_STATUS_BAD_TENSOR_SHAPE);
+        for (size_t i = 0; i < out_desc->ndim(); ++i) {
+            CHECK_OR_RETURN(out_desc->dim(i) == in_desc->dim(i), INFINI_STATUS_BAD_TENSOR_SHAPE);
+        }
+
         size_t n = 1;
-        for (auto s : shape) n *= s;
-        return n;
-    }
+        for (size_t i = 0; i < in_desc->ndim(); ++i) n *= static_cast<size_t>(in_desc->dim(i));
 
-    static utils::Result<LeakyreluInfo> create(
-        infiniopTensorDescriptor_t output_desc,
-        infiniopTensorDescriptor_t input_desc,
-        float negative_slope) 
-    {
-        if (!output_desc || !input_desc) return INFINI_STATUS_BAD_PARAM;
-        if (output_desc->dtype() != input_desc->dtype()) return INFINI_STATUS_BAD_TENSOR_DTYPE;
-
-        auto dt = output_desc->dtype();
-        if (dt != INFINI_DTYPE_F16 && dt != INFINI_DTYPE_BF16 &&
-            dt != INFINI_DTYPE_F32 && dt != INFINI_DTYPE_F64) {
-            return INFINI_STATUS_BAD_TENSOR_DTYPE;
-        }
-
-        if (output_desc->ndim() != input_desc->ndim()) return INFINI_STATUS_BAD_TENSOR_SHAPE;
-        size_t ndim = output_desc->ndim();
-        const auto out_shape = output_desc->shape();
-        const auto in_shape = input_desc->shape();
-        for (size_t i = 0; i < ndim; ++i) {
-            if (out_shape[i] != in_shape[i]) return INFINI_STATUS_BAD_TENSOR_SHAPE;
-        }
-
-        return utils::Result<LeakyreluInfo>(LeakyreluInfo{
-            dt,
-            output_desc->shape(),
-            output_desc->strides(),
-            input_desc->strides(),
+        return utils::Result<LeakyReLUInfo>(LeakyReLUInfo{
+            dt_in,
+            out_desc->shape(),
+            in_desc->strides(),
+            out_desc->strides(),
+            n,
             negative_slope
         });
     }

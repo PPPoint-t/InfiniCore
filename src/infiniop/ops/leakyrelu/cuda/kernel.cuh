@@ -3,31 +3,66 @@
 
 #include <cuda_fp16.h>
 #include <cuda_bf16.h>
+#include <stdint.h>
+#include <type_traits>
 
-template <unsigned int BLOCK_SIZE, typename Tcompute, typename Tdata>
-INFINIOP_CUDA_KERNEL leakyreluKernel(
-    Tdata *__restrict__ y,
-    ptrdiff_t stride_y,
-    const Tdata *__restrict__ x,
-    ptrdiff_t stride_x,
-    size_t dim,
-    size_t numel,
-    float negative_slope) {
+template <typename DevT>
+__device__ __forceinline__ float to_float_for_leaky(const DevT &v) {
+    if constexpr (std::is_same_v<DevT, half>) {
+        return __half2float(v);
+    } else if constexpr (std::is_same_v<DevT, __nv_bfloat16>) {
+        return __bfloat162float(v);
+    } else {
+        return static_cast<float>(v);
+    }
+}
 
-    // use runtime blockDim.x (bs) and gridDim.x for correct indexing
-    const unsigned int bs = static_cast<unsigned int>(blockDim.x);
-    const size_t tid = static_cast<size_t>(blockIdx.x) * static_cast<size_t>(bs) + static_cast<size_t>(threadIdx.x);
-    const size_t stride = static_cast<size_t>(bs) * static_cast<size_t>(gridDim.x);
+template <typename DevT>
+__device__ __forceinline__ DevT from_float_for_leaky(float f) {
+    if constexpr (std::is_same_v<DevT, half>) {
+        return __float2half_rn(f);
+    } else if constexpr (std::is_same_v<DevT, __nv_bfloat16>) {
+        return __float2bfloat16(f);
+    } else {
+        return static_cast<DevT>(f);
+    }
+}
 
-    for (size_t linear = tid; linear < numel; linear += stride) {
-        size_t row = linear / dim;
-        size_t col = linear % dim;
-        size_t in_idx = row * static_cast<size_t>(stride_x) + col;
-        size_t out_idx = row * static_cast<size_t>(stride_y) + col;
+template <class DevT>
+__global__ void leakyrelu_kernel(
+    DevT *__restrict__ out,
+    const DevT *__restrict__ in,
+    size_t n,
+    float negative_slope,
+    const size_t *__restrict__ shape,
+    const size_t *__restrict__ div,
+    const long long *__restrict__ in_stride,
+    const long long *__restrict__ out_stride,
+    int ndim) {
 
-        Tcompute xin = (Tcompute)(x[in_idx]);
-        Tcompute out = xin >= (Tcompute)0 ? xin : xin * (Tcompute)negative_slope;
-        y[out_idx] = (Tdata)(out);
+    size_t gid = static_cast<size_t>(blockIdx.x) * blockDim.x + threadIdx.x;
+    size_t grid_stride = static_cast<size_t>(blockDim.x) * gridDim.x;
+
+    for (size_t linear = gid; linear < n; linear += grid_stride) {
+        unsigned long long rem = linear;
+        long long in_off = 0;
+        long long out_off = 0;
+        for (int d = 0; d < ndim; ++d) {
+            unsigned long long idx_d = 0;
+            size_t divisor = div[d];
+            if (divisor != 0) {
+                idx_d = rem / divisor;
+                rem = rem % divisor;
+            } else {
+                idx_d = 0;
+            }
+            if (in_stride[d] != 0) in_off += static_cast<long long>(idx_d) * in_stride[d];
+            if (out_stride[d] != 0) out_off += static_cast<long long>(idx_d) * out_stride[d];
+        }
+
+        float v = to_float_for_leaky(in[static_cast<size_t>(in_off)]);
+        float outv = v >= 0.0f ? v : v * negative_slope;
+        out[static_cast<size_t>(out_off)] = from_float_for_leaky<DevT>(outv);
     }
 }
 

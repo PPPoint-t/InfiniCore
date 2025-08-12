@@ -5,25 +5,6 @@
 #include "../../tensor.h"
 #include <vector>
 
-
-static infiniDtype_t normalize_gguf_dtype(infiniDtype_t d) {
-    int dtype_as_int = static_cast<int>(d);
-    switch (dtype_as_int) {
-        case 0:  /* GGML_TYPE_F32 */  return INFINI_DTYPE_F32;
-        case 1:  /* GGML_TYPE_F16 */  return INFINI_DTYPE_F16;
-        case 24: /* GGML_TYPE_I8  */  return INFINI_DTYPE_I8;
-        case 25: /* GGML_TYPE_I16 */  return INFINI_DTYPE_I16;
-        case 26: /* GGML_TYPE_I32 */  return INFINI_DTYPE_I32;
-        case 27: /* GGML_TYPE_I64 */  return INFINI_DTYPE_I64;
-        case 28: /* GGML_TYPE_F64 */  return INFINI_DTYPE_F64;
-        case 30: /* GGML_TYPE_BF16 */ return INFINI_DTYPE_BF16;
-        default:
-            // not a known GGML raw id — assume it's already an INFINI_DTYPE enum
-            return d;
-    }
-}
-
-
 namespace op::cast {
 
 class CastInfo {
@@ -41,12 +22,8 @@ public:
         infiniopTensorDescriptor_t out_desc,
         infiniopTensorDescriptor_t in_desc) {
         
-        auto dt_out_raw = out_desc->dtype();
-        auto dt_in_raw  = in_desc->dtype();
-
-        // Normalize gguf/ggml raw ids into our INFINI_DTYPE_* values if necessary
-        auto dt_out = normalize_gguf_dtype(dt_out_raw);
-        auto dt_in  = normalize_gguf_dtype(dt_in_raw);
+        auto dt_out = out_desc->dtype();
+        auto dt_in  = in_desc->dtype();
 
         CHECK_DTYPE(dt_in,
                     INFINI_DTYPE_I32, INFINI_DTYPE_I64,

@@ -2,13 +2,12 @@ import torch
 import gguf
 from typing import List
 from ml_dtypes import bfloat16
-
 from .. import InfiniopTestWriter, InfiniopTestCase, np_dtype_to_ggml, gguf_strides, contiguous_gguf_strides
 
-def reference_tanh(input: torch.Tensor) -> torch.Tensor:
-    return torch.tanh(input)
+def reference_leakyrelu(input: torch.Tensor, negative_slope: float = 0.01) -> torch.Tensor:
+    return torch.where(input >= 0, input, input * negative_slope)
 
-class TanhTestCase(InfiniopTestCase):
+class LeakyReLUTestCase(InfiniopTestCase):
     def __init__(
         self,
         input: torch.Tensor,
@@ -17,14 +16,16 @@ class TanhTestCase(InfiniopTestCase):
         output: torch.Tensor,
         shape_output: List[int] | None,
         stride_output: List[int] | None,
+        negative_slope: float,
     ):
-        super().__init__("tanh")
+        super().__init__("leakyrelu")
         self.input = input
         self.shape_input = shape_input
         self.stride_input = stride_input
         self.output = output
         self.shape_output = shape_output
         self.stride_output = stride_output
+        self.negative_slope = negative_slope
 
     def write_test(self, test_writer: "InfiniopTestWriter"):
         super().write_test(test_writer)
@@ -40,6 +41,8 @@ class TanhTestCase(InfiniopTestCase):
             gguf_strides(*self.stride_output if self.stride_output is not None else contiguous_gguf_strides(self.shape_output))
         )
 
+        test_writer.add_float32(test_writer.gguf_key("negative_slope"), self.negative_slope)
+        
         if self.input.dtype == torch.bfloat16:
             bits = self.input.view(torch.uint16).cpu().numpy()
             arr_in = bits.view(bfloat16)
@@ -66,7 +69,7 @@ class TanhTestCase(InfiniopTestCase):
             raw_dtype=out_raw,
         )
 
-        ans = reference_tanh(self.input.double())
+        ans = reference_leakyrelu(self.input.double(), self.negative_slope)
 
         test_writer.add_tensor(
             test_writer.gguf_key("ans"),
@@ -90,38 +93,39 @@ def _dtype_suffix(dtype: torch.dtype) -> str:
 
 if __name__ == "__main__":
     _TEST_CASES_ = [
-        # shape, input_stride, output_stride
-        ((3, 3), None, None),
-        ((32, 512), None, None),
-        ((32, 512), (1024, 1), None),
-        ((32, 512), (1024, 1), (1024, 1)),
-        ((4, 4, 4), None, None),
-        ((16, 32, 512), None, None),
-        ((16, 20, 512), (20480, 512, 1), None),
-        ((16, 20, 512), (20480, 512, 1), (20480, 512, 1)),
-        ((1024,), None, None),
-        ((1024,), (2,), None),
-        ((1024,), (2,), (2,)),
-        ((2, 3, 4, 5), None, None),
+        # shape, input_stride, output_stride, negative_slope
+        ((3, 3), None, None, 1.0),
+        ((32, 512), None, None, 0.1),
+        ((32, 512), (1024, 1), None, 0.1),
+        ((32, 512), (1024, 1), (1024, 1), 0.1),
+        ((4, 4, 4), None, None, 0.5),
+        ((16, 32, 512), None, None, 0.5),
+        ((16, 20, 512), (20480, 512, 1), None, 0.5),
+        ((16, 20, 512), (20480, 512, 1), (20480, 512, 1), 0.5),
+        ((1024,), None, None, 0.7),
+        ((1024,), (2,), None, 0.7),
+        ((1024,), (2,), (2,), 0.7),
+        ((2, 3, 4, 5), None, None, 0.7),
     ]
 
     _TENSOR_DTYPES_ = [torch.float16, torch.float32, torch.bfloat16]
-    
+
     for dtype in _TENSOR_DTYPES_:
         suffix = _dtype_suffix(dtype)
-        filename = f"tanh_{suffix}.gguf"
+        filename = f"leakyrelu_{suffix}.gguf"
         test_writer = InfiniopTestWriter(filename)
-        test_cases: List[TanhTestCase] = []
-        for shape, stride_input, stride_output in _TEST_CASES_:
-            input_tensor = torch.randn(*shape, dtype=dtype) * 2
+        test_cases: List[LeakyReLUTestCase] = []
+        for shape, stride_input, stride_output, negative_slope in _TEST_CASES_:
+            input_tensor = torch.randn(*shape, dtype=dtype) * 1.5
             output_tensor = torch.empty_like(input_tensor)
-            test_case = TanhTestCase(
+            test_case = LeakyReLUTestCase(
                 input=input_tensor,
                 shape_input=list(shape),
                 stride_input=list(stride_input) if stride_input is not None else None,
                 output=output_tensor,
                 shape_output=list(shape),
                 stride_output=list(stride_output) if stride_output is not None else None,
+                negative_slope=negative_slope,
             )
             test_cases.append(test_case)
 

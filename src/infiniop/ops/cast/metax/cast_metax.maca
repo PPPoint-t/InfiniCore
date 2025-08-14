@@ -1,60 +1,170 @@
-#include "cos_metax.h"
-
-#include "../../../elementwise/metax/elementwise_metax.h"
-
 #include "../cuda/kernel.cuh"
+#include "../../../devices/metax/metax_common.h"
+#include "../cast.h"
+#include "cast_metax.h"
+#include "../info.h"
 
-namespace op::cos::metax {
+namespace op::cast::metax {
 
-Descriptor::~Descriptor() = default;
+struct Descriptor::Opaque {
+    std::shared_ptr<device::metax::Handle::Internal> internal;
+};
+
+Descriptor::~Descriptor() {
+    delete _opaque;
+}
+
+template <typename T> struct MapHcType { using Type = T; };
+template <> struct MapHcType<fp16_t> { using Type = half; };
 
 infiniStatus_t Descriptor::create(
     infiniopHandle_t handle_,
     Descriptor **desc_ptr,
     infiniopTensorDescriptor_t out_desc,
-    std::vector<infiniopTensorDescriptor_t> input_desc_vec) {
-
+    infiniopTensorDescriptor_t in_desc) {
     auto handle = reinterpret_cast<device::metax::Handle *>(handle_);
-    auto dtype = out_desc->dtype();
 
-    const auto &input_desc = input_desc_vec.at(0);
-    const auto &output_shape = out_desc->shape();
-    const auto &input_shape = input_desc->shape();
+    auto info_r = CastInfo::create(out_desc, in_desc);
+    CHECK_RESULT(info_r);
+    auto info = info_r.take();
 
-    CHECK_DTYPE(dtype, INFINI_DTYPE_F16, INFINI_DTYPE_F32, INFINI_DTYPE_F64, INFINI_DTYPE_BF16);
+    size_t workspace_size = 0;
 
-    CHECK_SAME_SHAPE(output_shape, input_shape);
-
-    // create CUDA elementwise descriptor
-    CREATE_ELEMENTWISE_METAX_DESCRIPTOR(handle, dtype, out_desc, input_desc_vec)
+    *desc_ptr = new Descriptor(
+        info,
+        workspace_size,
+        new Opaque{handle->internal()},
+        handle->device, handle->device_id);
 
     return INFINI_STATUS_SUCCESS;
 }
+
+size_t Descriptor::minWorkspaceSize() const {
+    return _min_workspace_size;
+}
+
+struct Algo {
+    int block_size;
+
+    Algo(int bs = 256) : block_size(bs) {}
+    template <class ToutHost, class TinHost>
+    infiniStatus_t run(
+        void *workspace, size_t workspace_size,
+        void *output_, const void *input_, size_t n,
+        const op::cast::CastInfo &info, void *stream_) const {
+        int bs = 0, grid = 0;
+        hcError_t propErr;
+        int device_id_local = 0;
+        using DevTout = typename MapHcType<ToutHost>::Type;
+        using DevTin  = typename MapHcType<TinHost>::Type;
+
+        auto out_dev = reinterpret_cast<DevTout *>(output_);
+        auto in_dev  = reinterpret_cast<const DevTin *>(input_);
+        auto stream = reinterpret_cast<hcStream_t>(stream_);
+
+        int ndim = static_cast<int>(info.shape.size());
+        if (ndim == 0) {
+            return INFINI_STATUS_SUCCESS;
+        }
+
+        std::vector<size_t> h_shape(info.shape.begin(), info.shape.end());
+        std::vector<size_t> h_div(ndim);
+        h_div[ndim - 1] = 1;
+        for (int d = ndim - 2; d >= 0; --d) {
+            h_div[d] = h_div[d + 1] * h_shape[d + 1];
+        }
+
+        std::vector<long long> h_in_stride(ndim), h_out_stride(ndim);
+        for (int d = 0; d < ndim; ++d) {
+            h_in_stride[d] = static_cast<long long>(info.in_stride[d]);
+            h_out_stride[d] = static_cast<long long>(info.out_stride[d]);
+        }
+
+        size_t *d_shape = nullptr;
+        size_t *d_div = nullptr;
+        long long *d_in_stride = nullptr;
+        long long *d_out_stride = nullptr;
+
+        hcError_t err = hcSuccess;
+        err = hcMalloc(reinterpret_cast<void **>(&d_shape), sizeof(size_t) * ndim);
+        if (err != hcSuccess) goto cleanup;
+        err = hcMalloc(reinterpret_cast<void **>(&d_div), sizeof(size_t) * ndim);
+        if (err != hcSuccess) goto cleanup;
+        err = hcMalloc(reinterpret_cast<void **>(&d_in_stride), sizeof(long long) * ndim);
+        if (err != hcSuccess) goto cleanup;
+        err = hcMalloc(reinterpret_cast<void **>(&d_out_stride), sizeof(long long) * ndim);
+        if (err != hcSuccess) goto cleanup;
+
+        err = hcMemcpyAsync(d_shape, h_shape.data(), sizeof(size_t) * ndim, hcMemcpyHostToDevice, stream);
+        if (err != hcSuccess) goto cleanup;
+        err = hcMemcpyAsync(d_div, h_div.data(), sizeof(size_t) * ndim, hcMemcpyHostToDevice, stream);
+        if (err != hcSuccess) goto cleanup;
+        err = hcMemcpyAsync(d_in_stride, h_in_stride.data(), sizeof(long long) * ndim, hcMemcpyHostToDevice, stream);
+        if (err != hcSuccess) goto cleanup;
+        err = hcMemcpyAsync(d_out_stride, h_out_stride.data(), sizeof(long long) * ndim, hcMemcpyHostToDevice, stream);
+        if (err != hcSuccess) goto cleanup;
+
+        bs = block_size > 0 ? block_size : 256;
+        device_id_local = 0;
+        propErr = hcGetDevice(&device_id_local);
+        if (propErr == hcSuccess) {
+            hcDeviceProp_t prop;
+            if (hcGetDeviceProperties(&prop, device_id_local) == hcSuccess) {
+                bs = std::min(bs, static_cast<int>(prop.maxThreadsPerBlock) / 2);
+            } else {
+                if (bs > 256) bs = 256;
+            }
+        } else {
+            if (bs > 256) bs = 256;
+        }
+
+        if (bs <= 0) bs = 256;
+        grid = static_cast<int>((n + bs - 1) / bs);
+        if (grid <= 0) grid = 1;
+
+        cast_kernel<DevTout, DevTin><<<grid, bs, 0, stream>>>(
+            out_dev, in_dev, n, d_shape, d_div, d_in_stride, d_out_stride, ndim);
+
+        err = hcGetLastError();
+        if (err != hcSuccess) goto cleanup;
+
+        err = hcStreamSynchronize(stream);
+        if (err != hcSuccess) goto cleanup;
+
+        hcFree(d_shape);
+        hcFree(d_div);
+        hcFree(d_in_stride);
+        hcFree(d_out_stride);
+        return INFINI_STATUS_SUCCESS;
+
+    cleanup:
+        hcFree(d_shape);
+        hcFree(d_div);
+        hcFree(d_in_stride);
+        hcFree(d_out_stride);
+        return INFINI_STATUS_DEVICE_ARCHITECTURE_NOT_SUPPORTED;
+    }
+
+};
 
 infiniStatus_t Descriptor::calculate(
     void *workspace,
     size_t workspace_size,
     void *output,
-    std::vector<const void *> inputs,
+    const void *input,
     void *stream) const {
 
-    if (workspace_size < _workspace_size) {
-        return INFINI_STATUS_INSUFFICIENT_WORKSPACE;
+    if (output == const_cast<void*>(input)) {
+        return INFINI_STATUS_BAD_PARAM;
     }
 
-    switch (_dtype) {
-    case INFINI_DTYPE_F16:
-        return _device_info->calculate<256, cuda::CosOp, half>(_info, workspace, output, inputs, stream);
-    case INFINI_DTYPE_BF16:
-        return _device_info->calculate<256, cuda::CosOp, cuda_bfloat16>(_info, workspace, output, inputs, stream);
-    case INFINI_DTYPE_F32:
-        return _device_info->calculate<256, cuda::CosOp, float>(_info, workspace, output, inputs, stream);
-    case INFINI_DTYPE_F64:
-        return _device_info->calculate<256, cuda::CosOp, double>(_info, workspace, output, inputs, stream);
-    default:
-        return INFINI_STATUS_BAD_TENSOR_DTYPE;
-    }
+    auto block_size = _opaque->internal->blockSizeX();
+    Calculate::calculate<Algo>(
+        Algo{static_cast<int>(block_size)},
+        _info, workspace, workspace_size,
+        output, input, stream);
 
     return INFINI_STATUS_SUCCESS;
 }
-} // namespace op::cos::metax
+
+} // namespace op::cast::metax

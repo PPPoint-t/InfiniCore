@@ -76,26 +76,29 @@ static inline void cpu_leakyrelu_impl_incremental(
     }
 }
 
-
-struct Algo {
-    template <class T>
-    infiniStatus_t run(
-        void * workspace, size_t workspace_size,
-        void *output, const void *input, size_t n,
-        const op::leakyrelu::LeakyReLUInfo &info, void * stream) const {
-        cpu_leakyrelu_impl_incremental<T>(output, input, info);
-        return INFINI_STATUS_SUCCESS;
-    }
-};
-
 infiniStatus_t Descriptor::calculate(
     void *workspace,
     size_t workspace_size,
     void *output,
     const void *input,
     void *stream) const {
-    Calculate::calculate<Algo>(Algo{}, _info, workspace, workspace_size, output, input, stream);
+
+    switch (_info.dt_in) {     
+    case INFINI_DTYPE_F16:
+        cpu_leakyrelu_impl_incremental<fp16_t>(output, input, _info);
+        break;             
+    case INFINI_DTYPE_BF16:
+        cpu_leakyrelu_impl_incremental<bf16_t>(output, input, _info);
+        break;             
+    case INFINI_DTYPE_F32: 
+        cpu_leakyrelu_impl_incremental<float>(output, input, _info);
+        break;            
+    case INFINI_DTYPE_F64: 
+        cpu_leakyrelu_impl_incremental<double>(output, input, _info);
+        break;            
+    default:               
+        return INFINI_STATUS_BAD_TENSOR_DTYPE;    
+    }                      
     return INFINI_STATUS_SUCCESS;
 }
-
 } // namespace op::leakyrelu::cpu

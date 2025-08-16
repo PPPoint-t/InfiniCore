@@ -28,7 +28,7 @@ infiniStatus_t Descriptor::create(
     return INFINI_STATUS_SUCCESS;
 }
 
-size_t Descriptor::minWorkspaceSize() const {
+size_t Descriptor::workspaceSize() const {
     return _min_workspace_size;
 }
 
@@ -73,20 +73,6 @@ static inline void cpu_cast_impl_incremental(
     }
 }
 
-// 修改 Algo，新增 info 参数并调用新的实现
-struct Algo {
-    template <class Tout, class Tin>
-    infiniStatus_t run(
-        void *workspace, size_t workspace_size,
-        void *output, const void *input, size_t n,
-        const op::cast::CastInfo &info, void *stream) const {
-
-        (void)workspace; (void)workspace_size; (void)stream;
-        cpu_cast_impl_incremental<Tout, Tin>(output, input, info);
-        return INFINI_STATUS_SUCCESS;
-    }
-};
-
 infiniStatus_t Descriptor::calculate(
     void *workspace,
     size_t workspace_size,
@@ -98,11 +84,52 @@ infiniStatus_t Descriptor::calculate(
         return INFINI_STATUS_BAD_PARAM; // or INFINI_STATUS_INPLACE_NOT_SUPPORTED
     }
 
-    Calculate::calculate<Algo>(
-        Algo{}, _info, workspace, workspace_size,
-        output, input, stream);
+    #define CASE_OUT(DT_OUT, TOUT)                                    \
+        case DT_OUT: {                                                \
+            switch (_info.dt_in) {                                    \
+            case INFINI_DTYPE_I32:                                    \
+                cpu_cast_impl_incremental<TOUT, int32_t>(output, input, _info); \
+                break;                                                \
+            case INFINI_DTYPE_I64:                                    \
+                cpu_cast_impl_incremental<TOUT, int64_t>(output, input, _info); \
+                break;                                                \
+            case INFINI_DTYPE_U32:                                    \
+                cpu_cast_impl_incremental<TOUT, uint32_t>(output, input, _info); \
+                break;                                                \
+            case INFINI_DTYPE_U64:                                    \
+                cpu_cast_impl_incremental<TOUT, uint64_t>(output, input, _info); \
+                break;                                                \
+            case INFINI_DTYPE_F16:                                    \
+                cpu_cast_impl_incremental<TOUT, fp16_t>(output, input, _info); \
+                break;                                                \
+            case INFINI_DTYPE_F32:                                    \
+                cpu_cast_impl_incremental<TOUT, float>(output, input, _info); \
+                break;                                                \
+            case INFINI_DTYPE_F64:                                    \
+                cpu_cast_impl_incremental<TOUT, double>(output, input, _info); \
+                break;                                                \
+            default:                                                  \
+                return INFINI_STATUS_DEVICE_TYPE_NOT_SUPPORTED;                 \
+            }                                                         \
+            break;                                                    \
+        }
+
+    switch (_info.dt_out) {
+        CASE_OUT(INFINI_DTYPE_I32, int32_t);
+        CASE_OUT(INFINI_DTYPE_I64, int64_t);
+        CASE_OUT(INFINI_DTYPE_U32, uint32_t);
+        CASE_OUT(INFINI_DTYPE_U64, uint64_t);
+        CASE_OUT(INFINI_DTYPE_F16, fp16_t);
+        CASE_OUT(INFINI_DTYPE_F32, float);
+        CASE_OUT(INFINI_DTYPE_F64, double);
+    default:
+        return INFINI_STATUS_DEVICE_TYPE_NOT_SUPPORTED;
+    }
+
+    #undef CASE_OUT
 
     return INFINI_STATUS_SUCCESS;
 }
+
 
 } // namespace op::cast::cpu

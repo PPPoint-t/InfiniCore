@@ -67,9 +67,7 @@ NUM_ITERATIONS = 1000
 
 
 def exp(output, input):
-    # output.copy_(torch.exp(input))
-    torch.exp(input, out=output)
-
+    output.copy_(torch.exp(input))
 
 def test(
     handle,

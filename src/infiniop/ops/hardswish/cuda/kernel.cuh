@@ -41,11 +41,11 @@ typedef struct HardswishOp {
       return hswish_f32(input);
     } else if constexpr (std::is_same_v<T, double>) {
       double xd = static_cast<double>(input);
-      double yd = xd * (std::min(std::max(xd + 3.0, 0.0), 6.0) / 6.0);
+      double yd = xd * (std::fmin(std::fmax(xd + 3.0, 0.0), 6.0) / 6.0);
       return static_cast<T>(yd);
     } else {
       double xd = static_cast<double>(input);
-      double yd = xd * (std::min(std::max(xd + 3.0, 0.0), 6.0) / 6.0);
+      double yd = xd * (std::fmin(std::fmax(xd + 3.0, 0.0), 6.0) / 6.0);
       return static_cast<T>(yd);
     }
   }

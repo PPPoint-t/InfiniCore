@@ -1,5 +1,6 @@
 #include "../cuda/kernel.cuh"
 #include "../../../devices/nvidia/nvidia_handle.cuh"
+#include "../../../devices/nvidia/nvidia_kernel_common.cuh"
 #include "../leakyrelu.h"
 #include "leakyrelu_nvidia.cuh"
 #include "../info.h"

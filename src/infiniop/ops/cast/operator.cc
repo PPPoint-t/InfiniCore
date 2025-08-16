@@ -52,7 +52,7 @@ __C infiniStatus_t infiniopGetCastWorkspaceSize(infiniopCastDescriptor_t desc, s
 
 #define GET(CASE, NAMESPACE)                                                               \
     case CASE:                                                                             \
-        *size = reinterpret_cast<op::cast::NAMESPACE::Descriptor *>(desc)->minWorkspaceSize(); \
+        *size = reinterpret_cast<op::cast::NAMESPACE::Descriptor *>(desc)->workspaceSize(); \
         return INFINI_STATUS_SUCCESS;
 
     switch (desc->device_type) {

@@ -6,7 +6,7 @@
 
 namespace op::leakyrelu::cpu {
 
-struct Descriptor::Opaque { /* nothing needed for CPU */ };
+struct Descriptor::Opaque {};
 
 Descriptor::~Descriptor() { delete _opaque; }
 
@@ -24,7 +24,7 @@ infiniStatus_t Descriptor::create(
 
     *desc_ptr = new Descriptor(
         info_r.take(),
-        0,      // workspace size
+        0,
         nullptr,
         handle->device, handle->device_id);
 

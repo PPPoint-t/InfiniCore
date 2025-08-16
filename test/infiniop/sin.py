@@ -67,9 +67,7 @@ NUM_ITERATIONS = 1000
 
 
 def sin(output, input):
-    # output.copy_(torch.sin(input))
-    torch.sin(input, out=output)
-
+    output.copy_(torch.sin(input))
 
 def test(
     handle,

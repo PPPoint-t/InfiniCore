@@ -49,9 +49,6 @@ _FLOAT_DTYPES = [
     InfiniDtype.F64,
 ]
 
-_DTYPE_SET = _INTEGER_DTYPES + _FLOAT_DTYPES
-
-
 def is_supported_dt(inf_dt):
     try:
         td = to_torch_dtype(inf_dt, compatability_mode=True)
@@ -84,7 +81,7 @@ def _is_unsigned_dtype(inf_dt):
 
 
 def reference_cast_torch(output_tensor, input_tensor):
-    converted = input_tensor.to(dtype=output_tensor.dtype)
+    converted = input_tensor.to(dtype=output_tensor.dtype, device=output_tensor.device).clone()
     output_tensor.copy_(converted)
 
 
@@ -144,6 +141,8 @@ def test(
 
         reference_cast_torch(output.actual_tensor(), input.torch_tensor())
 
+        expected = output.actual_tensor().clone()
+
         descriptor = infiniopOperatorDescriptor_t()
         check_error(
             LIBINFINIOP.infiniopCreateCastDescriptor(
@@ -172,8 +171,6 @@ def test(
                     None,
                 )
             )
-
-        expected = input.torch_tensor().to(dtype=output.actual_tensor().dtype, device=output.actual_tensor().device)
 
         lib_cast()
 

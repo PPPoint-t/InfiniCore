@@ -67,9 +67,7 @@ NUM_ITERATIONS = 1000
 
 
 def cos(output, input):
-    # output.copy_(torch.cos(input))
-    torch.cos(input, out=output)
-
+    output.copy_(torch.cos(input))
 
 def test(
     handle,

@@ -33,6 +33,40 @@ std::shared_ptr<Test> Test::build(
     test->_attributes->c = tensors["c"];
     test->_attributes->ans = tensors["ans"];
 
+    auto elemType = test->_attributes->a->ggml_type();
+    if (elemType == GGML_TYPE_I8) {
+        test->_rtol = 1e-5;
+        test->_atol = 1e-5;
+    }
+    if (elemType == GGML_TYPE_I16) {
+        test->_rtol = 1e-5;
+        test->_atol = 1e-5;
+    }
+    if (elemType == GGML_TYPE_I32) {
+        test->_rtol = 1e-5;
+        test->_atol = 1e-5;
+    }
+    if (elemType == GGML_TYPE_I64) {
+        test->_rtol = 1e-5;
+        test->_atol = 1e-5;
+    }
+    if (elemType == GGML_TYPE_F16) {
+        test->_rtol = 1e-7;
+        test->_atol = 1e-7;
+    }
+    if (elemType == GGML_TYPE_F32) {
+        test->_rtol = 1e-7;
+        test->_atol = 1e-7;
+    }
+    if (elemType == GGML_TYPE_F64) {
+        test->_rtol = 1e-7;
+        test->_atol = 1e-7;
+    }
+    if (elemType == GGML_TYPE_BF16) {
+        test->_rtol = 1e-5;
+        test->_atol = 1e-5;
+    }
+
     return test;
 }
 

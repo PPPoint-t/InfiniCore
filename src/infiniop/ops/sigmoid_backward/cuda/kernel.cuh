@@ -52,7 +52,6 @@ public:
             double s = 1.0 / (1.0 + std::exp(-x));
             return grad_out * s * (1.0 - s);
         } else {
-            // fallback to host-style std::exp if unknown type
             auto s = static_cast<float>(1) / (static_cast<float>(1) + std::exp(-static_cast<float>(x)));
             return static_cast<T>(static_cast<float>(grad_out) * s * (1.0f - s));
         }

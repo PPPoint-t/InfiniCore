@@ -67,9 +67,7 @@ NUM_ITERATIONS = 1000
 
 
 def tanh(output, input):
-    # output.copy_(torch.tanh(input))
-    torch.tanh(input, out=output)
-
+    output.copy_(torch.tanh(input))
 
 def test(
     handle,

@@ -46,7 +46,9 @@ static inline void cpu_cast_impl_incremental(
     const std::vector<ptrdiff_t> &in_stride = info.in_stride;
     const std::vector<ptrdiff_t> &out_stride = info.out_stride;
 
-    if (n == 0) return;
+    if (n == 0) {
+        return;
+    }
 
     std::vector<size_t> idx(ndim, 0);
     ptrdiff_t in_off = 0;
@@ -59,15 +61,23 @@ static inline void cpu_cast_impl_incremental(
 
         for (int d = static_cast<int>(ndim) - 1; d >= 0; --d) {
             idx[d] += 1;
-            if (in_stride[d] != 0) in_off += in_stride[d];
-            if (out_stride[d] != 0) out_off += out_stride[d];
+            if (in_stride[d] != 0) {
+                in_off += in_stride[d];
+            }
+            if (out_stride[d] != 0) {
+                out_off += out_stride[d];
+            }
 
             if (idx[d] < shape[d]) {
                 break;
             } else {
                 idx[d] = 0;
-                if (in_stride[d] != 0) in_off -= static_cast<ptrdiff_t>(shape[d]) * in_stride[d];
-                if (out_stride[d] != 0) out_off -= static_cast<ptrdiff_t>(shape[d]) * out_stride[d];
+                if (in_stride[d] != 0) {
+                    in_off -= static_cast<ptrdiff_t>(shape[d]) * in_stride[d];
+                }
+                if (out_stride[d] != 0) {
+                    out_off -= static_cast<ptrdiff_t>(shape[d]) * out_stride[d];
+                }
             }
         }
     }
@@ -80,39 +90,39 @@ infiniStatus_t Descriptor::calculate(
     const void *input,
     void *stream) const {
 
-    if (output == const_cast<void*>(input)) {
+    if (output == const_cast<void *>(input)) {
         return INFINI_STATUS_BAD_PARAM; // or INFINI_STATUS_INPLACE_NOT_SUPPORTED
     }
 
-    #define CASE_OUT(DT_OUT, TOUT)                                    \
-        case DT_OUT: {                                                \
-            switch (_info.dt_in) {                                    \
-            case INFINI_DTYPE_I32:                                    \
-                cpu_cast_impl_incremental<TOUT, int32_t>(output, input, _info); \
-                break;                                                \
-            case INFINI_DTYPE_I64:                                    \
-                cpu_cast_impl_incremental<TOUT, int64_t>(output, input, _info); \
-                break;                                                \
-            case INFINI_DTYPE_U32:                                    \
-                cpu_cast_impl_incremental<TOUT, uint32_t>(output, input, _info); \
-                break;                                                \
-            case INFINI_DTYPE_U64:                                    \
-                cpu_cast_impl_incremental<TOUT, uint64_t>(output, input, _info); \
-                break;                                                \
-            case INFINI_DTYPE_F16:                                    \
-                cpu_cast_impl_incremental<TOUT, fp16_t>(output, input, _info); \
-                break;                                                \
-            case INFINI_DTYPE_F32:                                    \
-                cpu_cast_impl_incremental<TOUT, float>(output, input, _info); \
-                break;                                                \
-            case INFINI_DTYPE_F64:                                    \
-                cpu_cast_impl_incremental<TOUT, double>(output, input, _info); \
-                break;                                                \
-            default:                                                  \
-                return INFINI_STATUS_DEVICE_TYPE_NOT_SUPPORTED;                 \
-            }                                                         \
-            break;                                                    \
-        }
+#define CASE_OUT(DT_OUT, TOUT)                                               \
+    case DT_OUT: {                                                           \
+        switch (_info.dt_in) {                                               \
+        case INFINI_DTYPE_I32:                                               \
+            cpu_cast_impl_incremental<TOUT, int32_t>(output, input, _info);  \
+            break;                                                           \
+        case INFINI_DTYPE_I64:                                               \
+            cpu_cast_impl_incremental<TOUT, int64_t>(output, input, _info);  \
+            break;                                                           \
+        case INFINI_DTYPE_U32:                                               \
+            cpu_cast_impl_incremental<TOUT, uint32_t>(output, input, _info); \
+            break;                                                           \
+        case INFINI_DTYPE_U64:                                               \
+            cpu_cast_impl_incremental<TOUT, uint64_t>(output, input, _info); \
+            break;                                                           \
+        case INFINI_DTYPE_F16:                                               \
+            cpu_cast_impl_incremental<TOUT, fp16_t>(output, input, _info);   \
+            break;                                                           \
+        case INFINI_DTYPE_F32:                                               \
+            cpu_cast_impl_incremental<TOUT, float>(output, input, _info);    \
+            break;                                                           \
+        case INFINI_DTYPE_F64:                                               \
+            cpu_cast_impl_incremental<TOUT, double>(output, input, _info);   \
+            break;                                                           \
+        default:                                                             \
+            return INFINI_STATUS_DEVICE_TYPE_NOT_SUPPORTED;                  \
+        }                                                                    \
+        break;                                                               \
+    }
 
     switch (_info.dt_out) {
         CASE_OUT(INFINI_DTYPE_I32, int32_t);
@@ -126,10 +136,9 @@ infiniStatus_t Descriptor::calculate(
         return INFINI_STATUS_DEVICE_TYPE_NOT_SUPPORTED;
     }
 
-    #undef CASE_OUT
+#undef CASE_OUT
 
     return INFINI_STATUS_SUCCESS;
 }
-
 
 } // namespace op::cast::cpu

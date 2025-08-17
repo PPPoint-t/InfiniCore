@@ -86,16 +86,16 @@ std::shared_ptr<infiniop_test::Result> Test::run(
     return TEST_PASSED(elapsed_time);
 }
 
-std::vector<std::string> Test::attribute_names() { 
-    return {}; 
+std::vector<std::string> Test::attribute_names() {
+    return {};
 }
 
-std::vector<std::string> Test::tensor_names() { 
-    return {"input", "output", "ans"}; 
+std::vector<std::string> Test::tensor_names() {
+    return {"input", "output", "ans"};
 }
 
-std::vector<std::string> Test::output_names() { 
-    return {"output"}; 
+std::vector<std::string> Test::output_names() {
+    return {"output"};
 }
 
 std::string Test::toString() const {
@@ -111,4 +111,4 @@ std::string Test::toString() const {
 Test::~Test() {
     delete _attributes;
 }
-}  // namespace infiniop_test::sin
+} // namespace infiniop_test::sin

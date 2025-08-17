@@ -34,7 +34,9 @@ public:
         }
 
         size_t n = 1;
-        for (size_t i = 0; i < in_desc->ndim(); ++i) n *= static_cast<size_t>(in_desc->dim(i));
+        for (size_t i = 0; i < in_desc->ndim(); ++i) {
+            n *= static_cast<size_t>(in_desc->dim(i));
+        }
 
         return utils::Result<LeakyReLUInfo>(LeakyReLUInfo{
             dt_in,
@@ -42,8 +44,7 @@ public:
             in_desc->strides(),
             out_desc->strides(),
             n,
-            negative_slope
-        });
+            negative_slope});
     }
 };
 

@@ -11,9 +11,8 @@ public:
     static constexpr size_t num_inputs = 2;
     template <typename T>
     T operator()(const T &x, const T &grad_out) const {
-        using ComputeT =
-            std::conditional_t<std::is_same_v<T, fp16_t> || std::is_same_v<T, bf16_t>,
-                               float, T>;
+        using ComputeT = std::conditional_t<std::is_same_v<T, fp16_t> || std::is_same_v<T, bf16_t>,
+                                            float, T>;
         ComputeT xv = utils::cast<ComputeT, T>(x);
         ComputeT gov = utils::cast<ComputeT, T>(grad_out);
 

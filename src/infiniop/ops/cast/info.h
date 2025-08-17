@@ -10,7 +10,7 @@ namespace op::cast {
 class CastInfo {
     CastInfo() = default;
 
-public:    
+public:
     infiniDtype_t dt_in;
     infiniDtype_t dt_out;
     std::vector<size_t> shape;
@@ -21,9 +21,9 @@ public:
     static utils::Result<CastInfo> create(
         infiniopTensorDescriptor_t out_desc,
         infiniopTensorDescriptor_t in_desc) {
-        
+
         auto dt_out = out_desc->dtype();
-        auto dt_in  = in_desc->dtype();
+        auto dt_in = in_desc->dtype();
 
         CHECK_DTYPE(dt_in,
                     INFINI_DTYPE_I32, INFINI_DTYPE_I64,
@@ -40,14 +40,16 @@ public:
         }
 
         size_t n = 1;
-        for (size_t i = 0; i < in_desc->ndim(); ++i) n *= static_cast<size_t>(in_desc->dim(i));
+        for (size_t i = 0; i < in_desc->ndim(); ++i) {
+            n *= static_cast<size_t>(in_desc->dim(i));
+        }
 
         return utils::Result<CastInfo>(CastInfo{
-            dt_in, 
-            dt_out, 
-            out_desc->shape(), 
-            in_desc->strides(), 
-            out_desc->strides(), 
+            dt_in,
+            dt_out,
+            out_desc->shape(),
+            in_desc->strides(),
+            out_desc->strides(),
             n,
         });
     }

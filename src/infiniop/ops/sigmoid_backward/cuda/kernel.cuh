@@ -1,10 +1,10 @@
 #ifndef __SIGMOID_BACKWARD_CUDA_H__
 #define __SIGMOID_BACKWARD_CUDA_H__
 
-#include <type_traits>
-#include <cuda_fp16.h>
-#include <cuda_bf16.h>
 #include <cmath>
+#include <cuda_bf16.h>
+#include <cuda_fp16.h>
+#include <type_traits>
 
 namespace op::sigmoid_backward::cuda {
 typedef struct SigmoidBackwardOp {

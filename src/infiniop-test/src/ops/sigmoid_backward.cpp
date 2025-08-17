@@ -54,9 +54,9 @@ std::shared_ptr<infiniop_test::Result> Test::run(
     auto grad_output = _attributes->grad_output->to(device, device_id);
     auto grad_input = _attributes->grad_input->to(device, device_id);
     CHECK_OR(infiniopCreateSigmoidBackwardDescriptor(handle, &op_desc,
-                                         grad_input->desc(),
-                                         input->desc(),
-                                         grad_output->desc()),
+                                                     grad_input->desc(),
+                                                     input->desc(),
+                                                     grad_output->desc()),
              return TEST_FAILED(OP_CREATION_FAILED, "Failed to create op descriptor."));
     size_t workspace_size;
     CHECK_OR(infiniopGetSigmoidBackwardWorkspaceSize(op_desc, &workspace_size),
@@ -65,10 +65,10 @@ std::shared_ptr<infiniop_test::Result> Test::run(
     CHECK_OR(infinirtMalloc(&workspace, workspace_size),
              return TEST_FAILED(OP_CREATION_FAILED, "Failed to allocate workspace."));
     CHECK_OR(infiniopSigmoidBackward(op_desc, workspace, workspace_size,
-                         grad_input->data(),
-                         input->data(),
-                         grad_output->data(),
-                         nullptr),
+                                     grad_input->data(),
+                                     input->data(),
+                                     grad_output->data(),
+                                     nullptr),
              return TEST_FAILED(OP_EXECUTION_FAILED, "Failed during execution."));
 
     try {
@@ -93,16 +93,16 @@ std::shared_ptr<infiniop_test::Result> Test::run(
     return TEST_PASSED(elapsed_time);
 }
 
-std::vector<std::string> Test::attribute_names() { 
-    return {}; 
+std::vector<std::string> Test::attribute_names() {
+    return {};
 }
 
-std::vector<std::string> Test::tensor_names() { 
-    return {"input", "grad_output", "grad_input", "ans"}; 
+std::vector<std::string> Test::tensor_names() {
+    return {"input", "grad_output", "grad_input", "ans"};
 }
 
-std::vector<std::string> Test::output_names() { 
-    return {"grad_input"}; 
+std::vector<std::string> Test::output_names() {
+    return {"grad_input"};
 }
 
 std::string Test::toString() const {
@@ -119,4 +119,4 @@ std::string Test::toString() const {
 Test::~Test() {
     delete _attributes;
 }
-}  // namespace infiniop_test::sigmoid_backward
+} // namespace infiniop_test::sigmoid_backward

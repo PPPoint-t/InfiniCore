@@ -1,8 +1,8 @@
 #ifndef __SIN_CPU_H__
 #define __SIN_CPU_H__
 
-#include <cmath>
 #include "../../../elementwise/cpu/elementwise_cpu.h"
+#include <cmath>
 
 ELEMENTWISE_DESCRIPTOR(sin, cpu)
 

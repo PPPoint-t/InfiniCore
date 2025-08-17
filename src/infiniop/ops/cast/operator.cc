@@ -24,7 +24,7 @@ __C infiniStatus_t infiniopCreateCastDescriptor(
             handle,                                                         \
             reinterpret_cast<op::cast::NAMESPACE::Descriptor **>(desc_ptr), \
             output_desc,                                                    \
-            input_desc)                                                     \
+            input_desc)
 
     switch (handle->device) {
 
@@ -50,8 +50,8 @@ __C infiniStatus_t infiniopCreateCastDescriptor(
 
 __C infiniStatus_t infiniopGetCastWorkspaceSize(infiniopCastDescriptor_t desc, size_t *size) {
 
-#define GET(CASE, NAMESPACE)                                                               \
-    case CASE:                                                                             \
+#define GET(CASE, NAMESPACE)                                                                \
+    case CASE:                                                                              \
         *size = reinterpret_cast<op::cast::NAMESPACE::Descriptor *>(desc)->workspaceSize(); \
         return INFINI_STATUS_SUCCESS;
 
@@ -84,8 +84,8 @@ __C infiniStatus_t infiniopCast(
     const void *input,
     void *stream) {
 
-#define CALCULATE(CASE, NAMESPACE)                                            \
-    case CASE:                                                                \
+#define CALCULATE(CASE, NAMESPACE)                                             \
+    case CASE:                                                                 \
         return reinterpret_cast<const op::cast::NAMESPACE::Descriptor *>(desc) \
             ->calculate(workspace, workspace_size, output, input, stream)
 
@@ -114,9 +114,9 @@ __C infiniStatus_t infiniopCast(
 __C infiniStatus_t
 infiniopDestroyCastDescriptor(infiniopCastDescriptor_t desc) {
 
-#define DELETE(CASE, NAMESPACE)                                            \
-    case CASE:                                                             \
-    delete reinterpret_cast<const op::cast::NAMESPACE::Descriptor *>(desc); \
+#define DELETE(CASE, NAMESPACE)                                                 \
+    case CASE:                                                                  \
+        delete reinterpret_cast<const op::cast::NAMESPACE::Descriptor *>(desc); \
         return INFINI_STATUS_SUCCESS
 
     switch (desc->device_type) {

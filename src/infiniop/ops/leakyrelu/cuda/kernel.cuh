@@ -1,8 +1,8 @@
 #ifndef __LEAKYRELU_CUDA_KERNEL_CUH__
 #define __LEAKYRELU_CUDA_KERNEL_CUH__
 
-#include <cuda_fp16.h>
 #include <cuda_bf16.h>
+#include <cuda_fp16.h>
 #include <stdint.h>
 #include <type_traits>
 
@@ -56,8 +56,12 @@ __global__ void leakyrelu_kernel(
             } else {
                 idx_d = 0;
             }
-            if (in_stride[d] != 0) in_off += static_cast<long long>(idx_d) * in_stride[d];
-            if (out_stride[d] != 0) out_off += static_cast<long long>(idx_d) * out_stride[d];
+            if (in_stride[d] != 0) {
+                in_off += static_cast<long long>(idx_d) * in_stride[d];
+            }
+            if (out_stride[d] != 0) {
+                out_off += static_cast<long long>(idx_d) * out_stride[d];
+            }
         }
 
         float v = to_float_for_leaky(in[static_cast<size_t>(in_off)]);

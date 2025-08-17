@@ -1,8 +1,8 @@
 #ifndef __HARDSWISH_CPU_H__
 #define __HARDSWISH_CPU_H__
 
-#include <algorithm>
 #include "../../../elementwise/cpu/elementwise_cpu.h"
+#include <algorithm>
 
 ELEMENTWISE_DESCRIPTOR(hardswish, cpu)
 

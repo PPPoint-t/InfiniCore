@@ -1,8 +1,8 @@
 #ifndef __COS_CPU_H__
 #define __COS_CPU_H__
 
-#include <cmath>
 #include "../../../elementwise/cpu/elementwise_cpu.h"
+#include <cmath>
 
 ELEMENTWISE_DESCRIPTOR(cos, cpu)
 

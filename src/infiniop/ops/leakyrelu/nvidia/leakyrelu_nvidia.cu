@@ -1,13 +1,13 @@
-#include "../cuda/kernel.cuh"
 #include "../../../devices/nvidia/nvidia_handle.cuh"
 #include "../../../devices/nvidia/nvidia_kernel_common.cuh"
+#include "../cuda/kernel.cuh"
+#include "../info.h"
 #include "../leakyrelu.h"
 #include "leakyrelu_nvidia.cuh"
-#include "../info.h"
-#include <cuda_runtime.h>
 #include <algorithm>
-#include <vector>
 #include <cstring>
+#include <cuda_runtime.h>
+#include <vector>
 
 namespace op::leakyrelu::nvidia {
 
@@ -19,10 +19,19 @@ Descriptor::~Descriptor() {
     delete _opaque;
 }
 
-template <typename T> struct MapCudaType { using Type = T; };
-template <> struct MapCudaType<fp16_t> { using Type = half; };
+template <typename T>
+struct MapCudaType {
+    using Type = T;
+};
+template <>
+struct MapCudaType<fp16_t> {
+    using Type = half;
+};
 #if defined(__CUDA_BF16_TYPES_EXIST__) || defined(__CUDA_ARCH__)
-template <> struct MapCudaType<bf16_t> { using Type = __nv_bfloat16; };
+template <>
+struct MapCudaType<bf16_t> {
+    using Type = __nv_bfloat16;
+};
 #endif
 
 infiniStatus_t Descriptor::create(
@@ -54,8 +63,8 @@ size_t Descriptor::workspaceSize() const {
 
 template <typename T>
 static inline infiniStatus_t cuda_leakyrelu_impl_incremental(
-    void *output_, const void *input_, 
-    const op::leakyrelu::LeakyReLUInfo &info, 
+    void *output_, const void *input_,
+    const op::leakyrelu::LeakyReLUInfo &info,
     void *stream_) {
 
     int bs = 256, grid = 0;
@@ -64,7 +73,7 @@ static inline infiniStatus_t cuda_leakyrelu_impl_incremental(
     using DevT = typename MapCudaType<T>::Type;
 
     auto out_dev = reinterpret_cast<DevT *>(output_);
-    auto in_dev  = reinterpret_cast<const DevT *>(input_);
+    auto in_dev = reinterpret_cast<const DevT *>(input_);
     auto stream = reinterpret_cast<cudaStream_t>(stream_);
 
     int ndim = static_cast<int>(info.shape.size());
@@ -93,21 +102,37 @@ static inline infiniStatus_t cuda_leakyrelu_impl_incremental(
     cudaError_t err = cudaSuccess;
 
     err = cudaMalloc(reinterpret_cast<void **>(&d_shape), sizeof(size_t) * ndim);
-    if (err != cudaSuccess) goto cleanup;
+    if (err != cudaSuccess) {
+        goto cleanup;
+    }
     err = cudaMalloc(reinterpret_cast<void **>(&d_div), sizeof(size_t) * ndim);
-    if (err != cudaSuccess) goto cleanup;
+    if (err != cudaSuccess) {
+        goto cleanup;
+    }
     err = cudaMalloc(reinterpret_cast<void **>(&d_in_stride), sizeof(long long) * ndim);
-    if (err != cudaSuccess) goto cleanup;
+    if (err != cudaSuccess) {
+        goto cleanup;
+    }
     err = cudaMalloc(reinterpret_cast<void **>(&d_out_stride), sizeof(long long) * ndim);
-    if (err != cudaSuccess) goto cleanup;
+    if (err != cudaSuccess) {
+        goto cleanup;
+    }
     err = cudaMemcpyAsync(d_shape, h_shape.data(), sizeof(size_t) * ndim, cudaMemcpyHostToDevice, stream);
-    if (err != cudaSuccess) goto cleanup;
+    if (err != cudaSuccess) {
+        goto cleanup;
+    }
     err = cudaMemcpyAsync(d_div, h_div.data(), sizeof(size_t) * ndim, cudaMemcpyHostToDevice, stream);
-    if (err != cudaSuccess) goto cleanup;
+    if (err != cudaSuccess) {
+        goto cleanup;
+    }
     err = cudaMemcpyAsync(d_in_stride, h_in_stride.data(), sizeof(long long) * ndim, cudaMemcpyHostToDevice, stream);
-    if (err != cudaSuccess) goto cleanup;
+    if (err != cudaSuccess) {
+        goto cleanup;
+    }
     err = cudaMemcpyAsync(d_out_stride, h_out_stride.data(), sizeof(long long) * ndim, cudaMemcpyHostToDevice, stream);
-    if (err != cudaSuccess) goto cleanup;
+    if (err != cudaSuccess) {
+        goto cleanup;
+    }
 
     device_id_local = 0;
     propErr = cudaGetDevice(&device_id_local);
@@ -116,24 +141,36 @@ static inline infiniStatus_t cuda_leakyrelu_impl_incremental(
         if (cudaGetDeviceProperties(&prop, device_id_local) == cudaSuccess) {
             bs = std::min(bs, static_cast<int>(prop.maxThreadsPerBlock) / 2);
         } else {
-            if (bs > 256) bs = 256;
+            if (bs > 256) {
+                bs = 256;
+            }
         }
     } else {
-        if (bs > 256) bs = 256;
+        if (bs > 256) {
+            bs = 256;
+        }
     }
 
-    if (bs <= 0) bs = 256;
+    if (bs <= 0) {
+        bs = 256;
+    }
     grid = static_cast<int>((info.n + bs - 1) / bs);
-    if (grid <= 0) grid = 1;
+    if (grid <= 0) {
+        grid = 1;
+    }
 
     leakyrelu_kernel<DevT><<<grid, bs, 0, stream>>>(
         out_dev, in_dev, info.n, info.negative_slope, d_shape, d_div, d_in_stride, d_out_stride, ndim);
 
     err = cudaGetLastError();
-    if (err != cudaSuccess) goto cleanup;
+    if (err != cudaSuccess) {
+        goto cleanup;
+    }
 
     err = cudaStreamSynchronize(stream);
-    if (err != cudaSuccess) goto cleanup;
+    if (err != cudaSuccess) {
+        goto cleanup;
+    }
 
     cudaFree(d_shape);
     cudaFree(d_div);
@@ -156,22 +193,22 @@ infiniStatus_t Descriptor::calculate(
     const void *input,
     void *stream) const {
 
-    switch (_info.dt_in) {     
+    switch (_info.dt_in) {
     case INFINI_DTYPE_F16:
         cuda_leakyrelu_impl_incremental<fp16_t>(output, input, _info, stream);
-        break;             
+        break;
     case INFINI_DTYPE_BF16:
         cuda_leakyrelu_impl_incremental<cuda_bfloat16>(output, input, _info, stream);
-        break;             
-    case INFINI_DTYPE_F32: 
+        break;
+    case INFINI_DTYPE_F32:
         cuda_leakyrelu_impl_incremental<float>(output, input, _info, stream);
-        break;            
-    case INFINI_DTYPE_F64: 
+        break;
+    case INFINI_DTYPE_F64:
         cuda_leakyrelu_impl_incremental<double>(output, input, _info, stream);
-        break;            
-    default:               
-        return INFINI_STATUS_BAD_TENSOR_DTYPE;    
-    }                      
+        break;
+    default:
+        return INFINI_STATUS_BAD_TENSOR_DTYPE;
+    }
     return INFINI_STATUS_SUCCESS;
 }
 

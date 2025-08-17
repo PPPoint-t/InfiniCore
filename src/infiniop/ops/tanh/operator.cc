@@ -20,11 +20,11 @@ __C infiniStatus_t infiniopCreateTanhDescriptor(
 
 #define CREATE(CASE, NAMESPACE)                                             \
     case CASE:                                                              \
-        return op::tanh::NAMESPACE::Descriptor::create(                      \
+        return op::tanh::NAMESPACE::Descriptor::create(                     \
             handle,                                                         \
-            reinterpret_cast<op::tanh::NAMESPACE::Descriptor **>(desc_ptr),  \
+            reinterpret_cast<op::tanh::NAMESPACE::Descriptor **>(desc_ptr), \
             output_desc,                                                    \
-            {input_desc})                                                   \
+            {input_desc})
 
     switch (handle->device) {
 
@@ -50,8 +50,8 @@ __C infiniStatus_t infiniopCreateTanhDescriptor(
 
 __C infiniStatus_t infiniopGetTanhWorkspaceSize(infiniopTanhDescriptor_t desc, size_t *size) {
 
-#define GET(CASE, NAMESPACE)                                                               \
-    case CASE:                                                                             \
+#define GET(CASE, NAMESPACE)                                                                \
+    case CASE:                                                                              \
         *size = reinterpret_cast<op::tanh::NAMESPACE::Descriptor *>(desc)->workspaceSize(); \
         return INFINI_STATUS_SUCCESS;
 
@@ -84,8 +84,8 @@ __C infiniStatus_t infiniopTanh(
     const void *input,
     void *stream) {
 
-#define CALCULATE(CASE, NAMESPACE)                                            \
-    case CASE:                                                                \
+#define CALCULATE(CASE, NAMESPACE)                                             \
+    case CASE:                                                                 \
         return reinterpret_cast<const op::tanh::NAMESPACE::Descriptor *>(desc) \
             ->calculate(workspace, workspace_size, output, {input}, stream)
 
@@ -114,9 +114,9 @@ __C infiniStatus_t infiniopTanh(
 __C infiniStatus_t
 infiniopDestroyTanhDescriptor(infiniopTanhDescriptor_t desc) {
 
-#define DELETE(CASE, NAMESPACE)                                            \
-    case CASE:                                                             \
-    delete reinterpret_cast<const op::tanh::NAMESPACE::Descriptor *>(desc); \
+#define DELETE(CASE, NAMESPACE)                                                 \
+    case CASE:                                                                  \
+        delete reinterpret_cast<const op::tanh::NAMESPACE::Descriptor *>(desc); \
         return INFINI_STATUS_SUCCESS
 
     switch (desc->device_type) {

@@ -18,13 +18,13 @@ __C infiniStatus_t infiniopCreateExpDescriptor(
     infiniopTensorDescriptor_t output_desc,
     infiniopTensorDescriptor_t input_desc) {
 
-#define CREATE(CASE, NAMESPACE)                                             \
-    case CASE:                                                              \
-        return op::exp::NAMESPACE::Descriptor::create(                      \
-            handle,                                                         \
-            reinterpret_cast<op::exp::NAMESPACE::Descriptor **>(desc_ptr),  \
-            output_desc,                                                         \
-            {input_desc})                                                       \
+#define CREATE(CASE, NAMESPACE)                                            \
+    case CASE:                                                             \
+        return op::exp::NAMESPACE::Descriptor::create(                     \
+            handle,                                                        \
+            reinterpret_cast<op::exp::NAMESPACE::Descriptor **>(desc_ptr), \
+            output_desc,                                                   \
+            {input_desc})
 
     switch (handle->device) {
 
@@ -114,9 +114,9 @@ __C infiniStatus_t infiniopExp(
 __C infiniStatus_t
 infiniopDestroyExpDescriptor(infiniopExpDescriptor_t desc) {
 
-#define DELETE(CASE, NAMESPACE)                                            \
-    case CASE:                                                             \
-    delete reinterpret_cast<const op::exp::NAMESPACE::Descriptor *>(desc); \
+#define DELETE(CASE, NAMESPACE)                                                \
+    case CASE:                                                                 \
+        delete reinterpret_cast<const op::exp::NAMESPACE::Descriptor *>(desc); \
         return INFINI_STATUS_SUCCESS
 
     switch (desc->device_type) {

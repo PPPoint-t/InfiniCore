@@ -65,8 +65,12 @@ __global__ void cast_kernel(
             } else {
                 idx_d = 0;
             }
-            if (in_stride[d] != 0) in_off += static_cast<long long>(idx_d) * in_stride[d];
-            if (out_stride[d] != 0) out_off += static_cast<long long>(idx_d) * out_stride[d];
+            if (in_stride[d] != 0) {
+                in_off += static_cast<long long>(idx_d) * in_stride[d];
+            }
+            if (out_stride[d] != 0) {
+                out_off += static_cast<long long>(idx_d) * out_stride[d];
+            }
         }
         out[static_cast<size_t>(out_off)] = device_cast<ToutDev, TinDev>(in[static_cast<size_t>(in_off)]);
     }

@@ -40,7 +40,9 @@ static inline void cpu_leakyrelu_impl_incremental(
     const size_t ndim = info.shape.size();
     const size_t n = info.n;
 
-    if (n == 0) return;
+    if (n == 0) {
+        return;
+    }
 
     auto out_base = reinterpret_cast<T *>(output);
     auto in_base = reinterpret_cast<const T *>(input);
@@ -62,15 +64,23 @@ static inline void cpu_leakyrelu_impl_incremental(
         *out_elem = utils::cast<T, float>(outv);
         for (int d = static_cast<int>(ndim) - 1; d >= 0; --d) {
             idx[d] += 1;
-            if (in_stride[d] != 0) in_off += in_stride[d];
-            if (out_stride[d] != 0) out_off += out_stride[d];
+            if (in_stride[d] != 0) {
+                in_off += in_stride[d];
+            }
+            if (out_stride[d] != 0) {
+                out_off += out_stride[d];
+            }
 
             if (idx[d] < shape[d]) {
                 break;
             } else {
                 idx[d] = 0;
-                if (in_stride[d] != 0) in_off -= static_cast<ptrdiff_t>(shape[d]) * in_stride[d];
-                if (out_stride[d] != 0) out_off -= static_cast<ptrdiff_t>(shape[d]) * out_stride[d];
+                if (in_stride[d] != 0) {
+                    in_off -= static_cast<ptrdiff_t>(shape[d]) * in_stride[d];
+                }
+                if (out_stride[d] != 0) {
+                    out_off -= static_cast<ptrdiff_t>(shape[d]) * out_stride[d];
+                }
             }
         }
     }
@@ -83,22 +93,22 @@ infiniStatus_t Descriptor::calculate(
     const void *input,
     void *stream) const {
 
-    switch (_info.dt_in) {     
+    switch (_info.dt_in) {
     case INFINI_DTYPE_F16:
         cpu_leakyrelu_impl_incremental<fp16_t>(output, input, _info);
-        break;             
+        break;
     case INFINI_DTYPE_BF16:
         cpu_leakyrelu_impl_incremental<bf16_t>(output, input, _info);
-        break;             
-    case INFINI_DTYPE_F32: 
+        break;
+    case INFINI_DTYPE_F32:
         cpu_leakyrelu_impl_incremental<float>(output, input, _info);
-        break;            
-    case INFINI_DTYPE_F64: 
+        break;
+    case INFINI_DTYPE_F64:
         cpu_leakyrelu_impl_incremental<double>(output, input, _info);
-        break;            
-    default:               
-        return INFINI_STATUS_BAD_TENSOR_DTYPE;    
-    }                      
+        break;
+    default:
+        return INFINI_STATUS_BAD_TENSOR_DTYPE;
+    }
     return INFINI_STATUS_SUCCESS;
 }
 } // namespace op::leakyrelu::cpu

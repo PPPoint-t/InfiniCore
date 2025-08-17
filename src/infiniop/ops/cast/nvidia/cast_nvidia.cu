@@ -1,12 +1,12 @@
-#include "../cuda/kernel.cuh"
 #include "../../../devices/nvidia/nvidia_handle.cuh"
 #include "../cast.h"
-#include "cast_nvidia.cuh"
+#include "../cuda/kernel.cuh"
 #include "../info.h"
-#include <cuda_runtime.h>
+#include "cast_nvidia.cuh"
 #include <algorithm>
-#include <vector>
 #include <cstring>
+#include <cuda_runtime.h>
+#include <vector>
 
 namespace op::cast::nvidia {
 
@@ -18,8 +18,14 @@ Descriptor::~Descriptor() {
     delete _opaque;
 }
 
-template <typename T> struct MapCudaType { using Type = T; };
-template <> struct MapCudaType<fp16_t> { using Type = half; };
+template <typename T>
+struct MapCudaType {
+    using Type = T;
+};
+template <>
+struct MapCudaType<fp16_t> {
+    using Type = half;
+};
 
 infiniStatus_t Descriptor::create(
     infiniopHandle_t handle_,
@@ -49,18 +55,18 @@ size_t Descriptor::workspaceSize() const {
 
 template <class ToutHost, class TinHost>
 static inline infiniStatus_t cuda_cast_impl_incremental(
-    void *output_, const void *input_, 
-    const op::cast::CastInfo &info, 
+    void *output_, const void *input_,
+    const op::cast::CastInfo &info,
     void *stream_) {
 
     int bs = 256, grid = 0;
     cudaError_t propErr;
     int device_id_local = 0;
     using DevTout = typename MapCudaType<ToutHost>::Type;
-    using DevTin  = typename MapCudaType<TinHost>::Type;
+    using DevTin = typename MapCudaType<TinHost>::Type;
 
     auto out_dev = reinterpret_cast<DevTout *>(output_);
-    auto in_dev  = reinterpret_cast<const DevTin *>(input_);
+    auto in_dev = reinterpret_cast<const DevTin *>(input_);
     auto stream = reinterpret_cast<cudaStream_t>(stream_);
 
     int ndim = static_cast<int>(info.shape.size());
@@ -88,22 +94,38 @@ static inline infiniStatus_t cuda_cast_impl_incremental(
 
     cudaError_t err = cudaSuccess;
     err = cudaMalloc(reinterpret_cast<void **>(&d_shape), sizeof(size_t) * ndim);
-    if (err != cudaSuccess) goto cleanup;
+    if (err != cudaSuccess) {
+        goto cleanup;
+    }
     err = cudaMalloc(reinterpret_cast<void **>(&d_div), sizeof(size_t) * ndim);
-    if (err != cudaSuccess) goto cleanup;
+    if (err != cudaSuccess) {
+        goto cleanup;
+    }
     err = cudaMalloc(reinterpret_cast<void **>(&d_in_stride), sizeof(long long) * ndim);
-    if (err != cudaSuccess) goto cleanup;
+    if (err != cudaSuccess) {
+        goto cleanup;
+    }
     err = cudaMalloc(reinterpret_cast<void **>(&d_out_stride), sizeof(long long) * ndim);
-    if (err != cudaSuccess) goto cleanup;
+    if (err != cudaSuccess) {
+        goto cleanup;
+    }
 
     err = cudaMemcpyAsync(d_shape, h_shape.data(), sizeof(size_t) * ndim, cudaMemcpyHostToDevice, stream);
-    if (err != cudaSuccess) goto cleanup;
+    if (err != cudaSuccess) {
+        goto cleanup;
+    }
     err = cudaMemcpyAsync(d_div, h_div.data(), sizeof(size_t) * ndim, cudaMemcpyHostToDevice, stream);
-    if (err != cudaSuccess) goto cleanup;
+    if (err != cudaSuccess) {
+        goto cleanup;
+    }
     err = cudaMemcpyAsync(d_in_stride, h_in_stride.data(), sizeof(long long) * ndim, cudaMemcpyHostToDevice, stream);
-    if (err != cudaSuccess) goto cleanup;
+    if (err != cudaSuccess) {
+        goto cleanup;
+    }
     err = cudaMemcpyAsync(d_out_stride, h_out_stride.data(), sizeof(long long) * ndim, cudaMemcpyHostToDevice, stream);
-    if (err != cudaSuccess) goto cleanup;
+    if (err != cudaSuccess) {
+        goto cleanup;
+    }
 
     device_id_local = 0;
     propErr = cudaGetDevice(&device_id_local);
@@ -112,24 +134,36 @@ static inline infiniStatus_t cuda_cast_impl_incremental(
         if (cudaGetDeviceProperties(&prop, device_id_local) == cudaSuccess) {
             bs = std::min(bs, static_cast<int>(prop.maxThreadsPerBlock) / 2);
         } else {
-            if (bs > 256) bs = 256;
+            if (bs > 256) {
+                bs = 256;
+            }
         }
     } else {
-        if (bs > 256) bs = 256;
+        if (bs > 256) {
+            bs = 256;
+        }
     }
 
-    if (bs <= 0) bs = 256;
+    if (bs <= 0) {
+        bs = 256;
+    }
     grid = static_cast<int>((info.n + bs - 1) / bs);
-    if (grid <= 0) grid = 1;
+    if (grid <= 0) {
+        grid = 1;
+    }
 
     cast_kernel<DevTout, DevTin><<<grid, bs, 0, stream>>>(
         out_dev, in_dev, info.n, d_shape, d_div, d_in_stride, d_out_stride, ndim);
 
     err = cudaGetLastError();
-    if (err != cudaSuccess) goto cleanup;
+    if (err != cudaSuccess) {
+        goto cleanup;
+    }
 
     err = cudaStreamSynchronize(stream);
-    if (err != cudaSuccess) goto cleanup;
+    if (err != cudaSuccess) {
+        goto cleanup;
+    }
 
     cudaFree(d_shape);
     cudaFree(d_div);
@@ -152,39 +186,39 @@ infiniStatus_t Descriptor::calculate(
     const void *input,
     void *stream) const {
 
-    if (output == const_cast<void*>(input)) {
+    if (output == const_cast<void *>(input)) {
         return INFINI_STATUS_BAD_PARAM;
     }
 
-    #define CASE_OUT(DT_OUT, TOUT)                                    \
-        case DT_OUT: {                                                \
-            switch (_info.dt_in) {                                    \
-            case INFINI_DTYPE_I32:                                    \
-                cuda_cast_impl_incremental<TOUT, int32_t>(output, input, _info, stream); \
-                break;                                                \
-            case INFINI_DTYPE_I64:                                    \
-                cuda_cast_impl_incremental<TOUT, int64_t>(output, input, _info, stream); \
-                break;                                                \
-            case INFINI_DTYPE_U32:                                    \
-                cuda_cast_impl_incremental<TOUT, uint32_t>(output, input, _info, stream); \
-                break;                                                \
-            case INFINI_DTYPE_U64:                                    \
-                cuda_cast_impl_incremental<TOUT, uint64_t>(output, input, _info, stream); \
-                break;                                                \
-            case INFINI_DTYPE_F16:                                    \
-                cuda_cast_impl_incremental<TOUT, fp16_t>(output, input, _info, stream); \
-                break;                                                \
-            case INFINI_DTYPE_F32:                                    \
-                cuda_cast_impl_incremental<TOUT, float>(output, input, _info, stream); \
-                break;                                                \
-            case INFINI_DTYPE_F64:                                    \
-                cuda_cast_impl_incremental<TOUT, double>(output, input, _info, stream); \
-                break;                                                \
-            default:                                                  \
-                return INFINI_STATUS_DEVICE_TYPE_NOT_SUPPORTED;                 \
-            }                                                         \
-            break;                                                    \
-        }
+#define CASE_OUT(DT_OUT, TOUT)                                                        \
+    case DT_OUT: {                                                                    \
+        switch (_info.dt_in) {                                                        \
+        case INFINI_DTYPE_I32:                                                        \
+            cuda_cast_impl_incremental<TOUT, int32_t>(output, input, _info, stream);  \
+            break;                                                                    \
+        case INFINI_DTYPE_I64:                                                        \
+            cuda_cast_impl_incremental<TOUT, int64_t>(output, input, _info, stream);  \
+            break;                                                                    \
+        case INFINI_DTYPE_U32:                                                        \
+            cuda_cast_impl_incremental<TOUT, uint32_t>(output, input, _info, stream); \
+            break;                                                                    \
+        case INFINI_DTYPE_U64:                                                        \
+            cuda_cast_impl_incremental<TOUT, uint64_t>(output, input, _info, stream); \
+            break;                                                                    \
+        case INFINI_DTYPE_F16:                                                        \
+            cuda_cast_impl_incremental<TOUT, fp16_t>(output, input, _info, stream);   \
+            break;                                                                    \
+        case INFINI_DTYPE_F32:                                                        \
+            cuda_cast_impl_incremental<TOUT, float>(output, input, _info, stream);    \
+            break;                                                                    \
+        case INFINI_DTYPE_F64:                                                        \
+            cuda_cast_impl_incremental<TOUT, double>(output, input, _info, stream);   \
+            break;                                                                    \
+        default:                                                                      \
+            return INFINI_STATUS_DEVICE_TYPE_NOT_SUPPORTED;                           \
+        }                                                                             \
+        break;                                                                        \
+    }
 
     switch (_info.dt_out) {
         CASE_OUT(INFINI_DTYPE_I32, int32_t);
@@ -198,7 +232,7 @@ infiniStatus_t Descriptor::calculate(
         return INFINI_STATUS_DEVICE_TYPE_NOT_SUPPORTED;
     }
 
-    #undef CASE_OUT
+#undef CASE_OUT
     return INFINI_STATUS_SUCCESS;
 }
 

@@ -6,22 +6,22 @@
 typedef struct InfiniopDescriptor *infiniopWhereDescriptor_t;
 
 __C __export infiniStatus_t infiniopCreateWhereDescriptor(infiniopHandle_t handle,
-                                                        infiniopWhereDescriptor_t *desc_ptr,
-                                                        infiniopTensorDescriptor_t c,
-                                                        infiniopTensorDescriptor_t a,
-                                                        infiniopTensorDescriptor_t b,
-                                                        infiniopTensorDescriptor_t condition);
+                                                          infiniopWhereDescriptor_t *desc_ptr,
+                                                          infiniopTensorDescriptor_t c,
+                                                          infiniopTensorDescriptor_t a,
+                                                          infiniopTensorDescriptor_t b,
+                                                          infiniopTensorDescriptor_t condition);
 
 __C __export infiniStatus_t infiniopGetWhereWorkspaceSize(infiniopWhereDescriptor_t desc, size_t *size);
 
 __C __export infiniStatus_t infiniopWhere(infiniopWhereDescriptor_t desc,
-                                        void *workspace,
-                                        size_t workspace_size,
-                                        void *c,
-                                        const void *a,
-                                        const void *b,
-                                        const void *condition,
-                                        void *stream);
+                                          void *workspace,
+                                          size_t workspace_size,
+                                          void *c,
+                                          const void *a,
+                                          const void *b,
+                                          const void *condition,
+                                          void *stream);
 
 __C __export infiniStatus_t infiniopDestroyWhereDescriptor(infiniopWhereDescriptor_t desc);
 

@@ -6,7 +6,7 @@ typedef struct WhereOp {
 public:
     static constexpr size_t num_inputs = 3;
     template <typename T>
-    __device__ __forceinline__ T operator()(const T &a, const T &b, const T &cond) const {
+    __device__ __forceinline__ T operator()(const T &a, const T &b, const bool &cond) const {
         return cond ? a : b;
     }
 } WhereOp;

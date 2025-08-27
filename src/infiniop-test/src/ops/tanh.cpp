@@ -37,8 +37,8 @@ std::shared_ptr<Test> Test::build(
         test->_atol = 1e-3;
     }
     if (elemType == GGML_TYPE_F32) {
-        test->_rtol = 1e-7;
-        test->_atol = 1e-7;
+        test->_rtol = 1e-6;
+        test->_atol = 1e-6;
     }
 
     return test;

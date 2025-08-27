@@ -147,7 +147,7 @@ def test(
     # Profiling workflow
     if PROFILE:
         # fmt: off
-        profile_operation("PyTorch", lambda: leakyrelu(output.torch_tensor(), input.torch_tensor()), device, NUM_PRERUN, NUM_ITERATIONS)
+        profile_operation("PyTorch", lambda: leakyrelu(output.torch_tensor(), input.torch_tensor(), negative_slope), device, NUM_PRERUN, NUM_ITERATIONS)
         profile_operation("    lib", lambda: lib_leakyrelu(), device, NUM_PRERUN, NUM_ITERATIONS)
         # fmt: on
     check_error(LIBINFINIOP.infiniopDestroyLeakyreluDescriptor(descriptor))

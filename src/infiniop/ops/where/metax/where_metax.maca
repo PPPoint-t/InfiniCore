@@ -19,16 +19,28 @@ infiniStatus_t Descriptor::create(
 
     const auto &a_desc = input_desc_vec.at(0);
     const auto &b_desc = input_desc_vec.at(1);
+    const auto &cond_desc = input_desc_vec.at(2);
+
     const auto &c_shape = out_desc->shape();
     const auto &a_shape = a_desc->shape();
     const auto &b_shape = b_desc->shape();
+    const auto &cond_shape = cond_desc->shape();
 
-    CHECK_DTYPE(dtype, INFINI_DTYPE_F16, INFINI_DTYPE_F32, INFINI_DTYPE_F64, INFINI_DTYPE_BF16);
+    CHECK_DTYPE(cond_desc->dtype(),
+                INFINI_DTYPE_F16, INFINI_DTYPE_F32, INFINI_DTYPE_F64, INFINI_DTYPE_BF16,
+                INFINI_DTYPE_I8, INFINI_DTYPE_I16, INFINI_DTYPE_I32, INFINI_DTYPE_I64,
+                INFINI_DTYPE_U8, INFINI_DTYPE_U16, INFINI_DTYPE_U32, INFINI_DTYPE_U64,
+                INFINI_DTYPE_BOOL);
 
-    CHECK_SAME_SHAPE(c_shape, a_shape, b_shape);
+    CHECK_DTYPE(dtype,
+                INFINI_DTYPE_F16, INFINI_DTYPE_F32, INFINI_DTYPE_F64, INFINI_DTYPE_BF16,
+                INFINI_DTYPE_I8, INFINI_DTYPE_I16, INFINI_DTYPE_I32, INFINI_DTYPE_I64,
+                INFINI_DTYPE_U8, INFINI_DTYPE_U16, INFINI_DTYPE_U32, INFINI_DTYPE_U64,
+                INFINI_DTYPE_BOOL);
 
-    // create CUDA elementwise descriptor
-    CREATE_ELEMENTWISE_METAX_DESCRIPTOR(handle, dtype, out_desc, input_desc_vec)
+    CHECK_SAME_SHAPE(c_shape, a_shape, b_shape, cond_shape);
+
+    CREATE_ELEMENTWISE_CUDA_DESCRIPTOR(handle, dtype, out_desc, input_desc_vec)
 
     return INFINI_STATUS_SUCCESS;
 }
@@ -53,6 +65,24 @@ infiniStatus_t Descriptor::calculate(
         return _device_info->calculate<256, cuda::WhereOp, float>(_info, workspace, output, inputs, stream);
     case INFINI_DTYPE_F64:
         return _device_info->calculate<256, cuda::WhereOp, double>(_info, workspace, output, inputs, stream);
+    case INFINI_DTYPE_I8:
+        return _device_info->calculate<256, cuda::WhereOp, int8_t>(_info, workspace, output, inputs, stream);
+    case INFINI_DTYPE_I16:
+        return _device_info->calculate<256, cuda::WhereOp, int16_t>(_info, workspace, output, inputs, stream);
+    case INFINI_DTYPE_I32:
+        return _device_info->calculate<256, cuda::WhereOp, int32_t>(_info, workspace, output, inputs, stream);
+    case INFINI_DTYPE_I64:
+        return _device_info->calculate<256, cuda::WhereOp, int64_t>(_info, workspace, output, inputs, stream);
+    case INFINI_DTYPE_U8:
+        return _device_info->calculate<256, cuda::WhereOp, uint8_t>(_info, workspace, output, inputs, stream);
+    case INFINI_DTYPE_U16:
+        return _device_info->calculate<256, cuda::WhereOp, uint16_t>(_info, workspace, output, inputs, stream);
+    case INFINI_DTYPE_U32:
+        return _device_info->calculate<256, cuda::WhereOp, uint32_t>(_info, workspace, output, inputs, stream);
+    case INFINI_DTYPE_U64:
+        return _device_info->calculate<256, cuda::WhereOp, uint64_t>(_info, workspace, output, inputs, stream);
+    case INFINI_DTYPE_BOOL:
+        return _device_info->calculate<256, cuda::WhereOp, bool>(_info, workspace, output, inputs, stream);
     default:
         return INFINI_STATUS_BAD_TENSOR_DTYPE;
     }

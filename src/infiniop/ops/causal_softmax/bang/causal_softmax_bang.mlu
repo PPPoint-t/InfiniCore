@@ -1,0 +1,80 @@
+#include "../../../devices/bang/common_bang.h"
+#include "causal_softmax_bang.h"
+#include "causal_softmax_kernel.mlu"
+
+namespace op::causal_softmax::bang {
+
+Descriptor::~Descriptor() = default;
+
+infiniStatus_t Descriptor::create(
+    infiniopHandle_t handle_,
+    Descriptor **desc_ptr,
+    infiniopTensorDescriptor_t y_desc,
+    infiniopTensorDescriptor_t x_desc) {
+
+    auto handle = reinterpret_cast<device::bang::Handle *>(handle_);
+
+    auto info = CausalSoftmaxInfo::create(y_desc, x_desc);
+    CHECK_RESULT(info);
+
+    *desc_ptr = new Descriptor(
+        nullptr,
+        info.take(),
+        0,
+        handle->device,
+        handle->device_id);
+
+    return INFINI_STATUS_SUCCESS;
+}
+
+template <typename Tdata, typename Tcompute>
+infiniStatus_t calculateCausalSoftmax(const CausalSoftmaxInfo &info,
+                                     Tdata *y,
+                                     const Tdata *x,
+                                     cnrtQueue_t queue) {
+    cnrtDim3_t k_dim;
+    cnrtFunctionType_t k_type;
+
+    k_dim.x = 4;
+    k_dim.y = 1;
+    k_dim.z = 1;
+    k_type = cnrtFuncTypeUnion1;
+
+    causalSoftmax<Tdata, Tcompute>
+        <<<k_dim, k_type, queue>>>(
+            y, x,
+            uint32_t(info.batch_size), uint32_t(info.seq_len), uint32_t(info.total_seq_len),
+            info.y_stride_b, info.y_stride_i, info.y_stride_j,
+            info.x_stride_b, info.x_stride_i, info.x_stride_j);
+
+    cnrtQueueSync(queue);
+    return INFINI_STATUS_SUCCESS;
+}
+
+#define CALCULATE_CAU(TDATA, TCOMP) \
+    calculateCausalSoftmax<TDATA, TCOMP>(_info, (TDATA *)y, (const TDATA *)x, (cnrtQueue_t)stream)
+
+infiniStatus_t Descriptor::calculate(
+    void *workspace,
+    size_t workspace_size,
+    void *y,
+    const void *x,
+    void *stream) const {
+
+    switch (_info.dtype) {
+    case INFINI_DTYPE_F16:
+        return CALCULATE_CAU(half, float);
+    case INFINI_DTYPE_BF16:
+        return CALCULATE_CAU(__nv_bfloat16, float);
+    case INFINI_DTYPE_F32:
+        return CALCULATE_CAU(float, float);
+    default:
+        return INFINI_STATUS_BAD_TENSOR_DTYPE;
+    }
+
+    return INFINI_STATUS_SUCCESS;
+}
+
+#undef CALCULATE_CAU
+
+} // namespace op::causal_softmax::bang

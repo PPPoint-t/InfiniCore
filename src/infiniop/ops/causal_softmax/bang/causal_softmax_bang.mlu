@@ -65,7 +65,7 @@ infiniStatus_t Descriptor::calculate(
     case INFINI_DTYPE_F16:
         return CALCULATE_CAU(half, float);
     case INFINI_DTYPE_BF16:
-        return CALCULATE_CAU(__nv_bfloat16, float);
+        return CALCULATE_CAU(__bang_bfloat16, float);
     case INFINI_DTYPE_F32:
         return CALCULATE_CAU(float, float);
     default:

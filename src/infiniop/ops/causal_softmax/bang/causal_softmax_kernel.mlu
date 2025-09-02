@@ -4,31 +4,30 @@ __nram__ char nram_buffer[NRAM_MAX_SIZE];
 
 template <typename Tdata, typename Tcompute>
 __mlu_global__ void causalSoftmax(
-    Tdata *y,
-    const Tdata *x,
+    Tdata *y, const Tdata *x,
     uint32_t batch, uint32_t height, uint32_t width,
     ptrdiff_t y_stride_b, ptrdiff_t y_stride_i, ptrdiff_t y_stride_j,
     ptrdiff_t x_stride_b, ptrdiff_t x_stride_i, ptrdiff_t x_stride_j) {
 
-    const int SRC_MAX_SIZE = NRAM_MAX_SIZE / 4;
-    const int maxNum = SRC_MAX_SIZE / sizeof(Tdata);
-    const int wSize = 128 / sizeof(Tdata);
-
     const int total_tasks = int(batch) * int(height);
-
     int remainT = total_tasks % taskDim;
     int stepEasy = (total_tasks - remainT) / taskDim;
     int stepHard = stepEasy + 1;
     int step = (taskId < remainT ? stepHard : stepEasy);
     int indStart = (taskId < remainT ? taskId * stepHard : (taskId - remainT) * stepEasy + remainT * stepHard);
 
-    char *aligned_nram = (char *)(((size_t)nram_buffer + ALIGN_SIZE - 1) & ~(ALIGN_SIZE - 1));
-    Tdata *chunk_buf = (Tdata *)aligned_nram;
+    char *aligned_nram_base = (char *)(((size_t)nram_buffer + ALIGN_SIZE - 1) & ~(ALIGN_SIZE - 1));
+    size_t nram_usable = NRAM_MAX_SIZE - (size_t)(aligned_nram_base - nram_buffer) - ALIGN_SIZE;
+    const int wSize = 128 / sizeof(float);
 
-    Tcompute *meta_max = (Tcompute *)((char *)aligned_nram + maxNum * sizeof(Tdata));
-    int max_chunks_meta = int((NRAM_MAX_SIZE - maxNum * sizeof(Tdata)) / (2 * sizeof(Tcompute)));
-    if (max_chunks_meta <= 0) max_chunks_meta = 1;
-    Tcompute *meta_sum = meta_max + max_chunks_meta;// index [0..max_chunks_meta-1]
+    int chunk_target = (int)(nram_usable / (sizeof(Tdata) + sizeof(float) + 256));
+    if (chunk_target < 16) {
+        chunk_target = 16;
+    }
+
+    const int META_LIMIT = 256;
+    float meta_max[META_LIMIT];
+    float meta_sum[META_LIMIT];
 
     for (int t = 0; t < step; ++t) {
         int task_idx = indStart + t;
@@ -39,176 +38,203 @@ __mlu_global__ void causalSoftmax(
         ptrdiff_t x_base = ptrdiff_t(batch_idx) * x_stride_b + ptrdiff_t(row) * x_stride_i;
 
         int valid_len = int(width) - int(height) + 1 + row;
-        if (valid_len < 0) valid_len = 0;
-        if (valid_len > int(width)) valid_len = int(width);
+        if (valid_len < 0) {
+            valid_len = 0;
+        }
+        if (valid_len > int(width)) {
+            valid_len = int(width);
+        }
 
         if (valid_len == 0) {
-            Tdata zero = (Tdata)0;
-            for (int c = 0; c < int(width); ++c) {
-                __memcpy(y + y_base + ptrdiff_t(c) * y_stride_j, &zero, sizeof(Tdata), NRAM2GDRAM);
+            __nram__ Tdata z;
+            z = (Tdata)0;
+            for (int c = 0; c < (int)width; ++c) {
+                __memcpy(y + y_base + ptrdiff_t(c) * y_stride_j, &z, sizeof(Tdata), NRAM2GDRAM);
             }
             continue;
         }
 
-        if (valid_len <= maxNum && x_stride_j == 1 && y_stride_j == 1) {
-            __memcpy(chunk_buf, x + x_base, valid_len * sizeof(Tdata), GDRAM2NRAM);
-
-            // max
-            __nram__ Tdata srcMaxTmp[2];
-            __bang_argmax(srcMaxTmp, chunk_buf, valid_len);
-            Tcompute localMax = (Tcompute)srcMaxTmp[0];
-
-            // exp(x - max)
-            __bang_sub_scalar(chunk_buf, chunk_buf, (Tdata)localMax, valid_len);
-            __bang_active_exp_less_0(chunk_buf, chunk_buf, valid_len);
-
-            Tdata *destSum = (Tdata *)aligned_nram + maxNum;
-            __bang_write_zero(destSum, maxNum);
-            __memcpy(destSum, chunk_buf, valid_len * sizeof(Tdata), NRAM2NRAM);
-
-            Tcompute sumFloat = 0;
-            if (valid_len >= wSize) {
-                int segNum = valid_len / wSize;
-                for (int strip = segNum / 2; strip > 0; strip >>= 1) {
-                    for (int j = 0; j < strip; ++j) {
-                        __bang_add(destSum + j * wSize, destSum + j * wSize, destSum + (j + strip) * wSize, wSize);
-                    }
-                }
-                Tdata *destSumFinal = destSum + wSize * ((valid_len + wSize - 1) / wSize);
-                __bang_reduce_sum(destSumFinal, destSum, wSize);
-                sumFloat = (Tcompute)destSumFinal[0];
-            } else {
-                Tdata *destSumFinal = destSum + wSize * ((valid_len + wSize - 1) / wSize);
-                __memcpy(destSumFinal, destSum, valid_len * sizeof(Tdata), NRAM2NRAM);
-                __bang_reduce_sum(destSumFinal, destSumFinal, wSize);
-                sumFloat = (Tcompute)destSumFinal[0];
-            }
-
-            Tcompute inv = 1.0f / (sumFloat + (Tcompute)1e-20f);
-            __bang_mul_scalar(chunk_buf, chunk_buf, (Tdata)inv, valid_len);
-            __memcpy(y + y_base, chunk_buf, valid_len * sizeof(Tdata), NRAM2GDRAM);
-
-            // zero
-            if (valid_len < int(width)) {
-                Tdata zero = (Tdata)0;
-                for (int c = valid_len; c < int(width); ++c) {
-                    __memcpy(y + y_base + ptrdiff_t(c) * y_stride_j, &zero, sizeof(Tdata), NRAM2GDRAM);
-                }
-            }
-            continue;
+        int chunk_elems = chunk_target;
+        if (chunk_elems > valid_len) {
+            chunk_elems = valid_len;
+        }
+        if (chunk_elems <= 0) {
+            chunk_elems = 1;
         }
 
-        int chunk_elems = maxNum;
-        int nChunks = (valid_len + chunk_elems - 1) / chunk_elems;
-        if (nChunks > max_chunks_meta) {
-            chunk_elems = (valid_len + max_chunks_meta - 1) / max_chunks_meta;
-            nChunks = (valid_len + chunk_elems - 1) / chunk_elems;
-        }
+        char *nram_base = aligned_nram_base;
+        Tdata *nram_src = (Tdata *)nram_base;
+        float *nram_f = (float *)(nram_base + ((size_t)chunk_elems * sizeof(Tdata) + 127) / 128 * 128);
 
-        // PASS1: compute per-chunk max & sum
+        // PASS A: compute max and sums
         int processed = 0;
-        int cidx = 0;
+        int meta_count = 0;
         while (processed < valid_len) {
             int cur = (valid_len - processed) < chunk_elems ? (valid_len - processed) : chunk_elems;
 
             if (x_stride_j == 1) {
-                __memcpy(chunk_buf, x + x_base + ptrdiff_t(processed) * x_stride_j, cur * sizeof(Tdata), GDRAM2NRAM);
+                __memcpy(nram_src, x + x_base + ptrdiff_t(processed), cur * sizeof(Tdata), GDRAM2NRAM);
             } else {
                 for (int i = 0; i < cur; ++i) {
-                    __memcpy(&chunk_buf[i], x + x_base + ptrdiff_t(processed + i) * x_stride_j, sizeof(Tdata), GDRAM2NRAM);
+                    __memcpy((char *)nram_src + i * sizeof(Tdata),
+                             x + x_base + ptrdiff_t(processed + i) * x_stride_j,
+                             sizeof(Tdata), GDRAM2NRAM);
                 }
             }
 
-            __nram__ Tdata srcMaxTmp[2];
-            __bang_argmax(srcMaxTmp, chunk_buf, cur);
-            meta_max[cidx] = (Tcompute)srcMaxTmp[0];
-
-            __bang_sub_scalar(chunk_buf, chunk_buf, (Tdata)meta_max[cidx], cur);
-            __bang_active_exp_less_0(chunk_buf, chunk_buf, cur);
-
-            Tdata *destSum = (Tdata *)aligned_nram + maxNum;
-            __bang_write_zero(destSum, maxNum);
-            __memcpy(destSum, chunk_buf, cur * sizeof(Tdata), NRAM2NRAM);
-
-            if (cur >= wSize) {
-                int segNum = cur / wSize;
-                for (int strip = segNum / 2; strip > 0; strip >>= 1) {
-                    for (int j = 0; j < strip; ++j) {
-                        __bang_add(destSum + j * wSize, destSum + j * wSize, destSum + (j + strip) * wSize, wSize);
+            if constexpr (std::is_same<Tdata, float>::value) {
+                float maxv = -INFINITY;
+                for (int i = 0; i < cur; ++i) {
+                    float vv = nram_src[i];
+                    if (vv > maxv) {
+                        maxv = vv;
                     }
                 }
-                Tdata *destSumFinal = destSum + wSize * ((cur + wSize - 1) / wSize);
-                __bang_reduce_sum(destSumFinal, destSum, wSize);
-                meta_sum[cidx] = (Tcompute)destSumFinal[0];
+                // sum of exp(x - maxv)
+                float s = 0.0f;
+                for (int i = 0; i < cur; ++i) {
+                    float vv = nram_src[i];
+                    float e = expf(vv - maxv);
+                    s += e;
+                }
+                if (meta_count < META_LIMIT) {
+                    meta_max[meta_count] = maxv;
+                    meta_sum[meta_count] = s;
+                    ++meta_count;
+                } else {
+                    float M0 = meta_max[0], S0 = meta_sum[0];
+                    float M1 = maxv, S1 = s;
+                    if (M1 > M0) {
+                        meta_sum[0] = S1 + S0 * expf(M0 - M1);
+                        meta_max[0] = M1;
+                    } else {
+                        meta_sum[0] = S0 + S1 * expf(M1 - M0);
+                    }
+                    meta_count = 1;
+                }
             } else {
-                Tdata *destSumFinal = destSum + wSize * ((cur + wSize - 1) / wSize);
-                __memcpy(destSumFinal, destSum, cur * sizeof(Tdata), NRAM2NRAM);
-                __bang_reduce_sum(destSumFinal, destSumFinal, wSize);
-                meta_sum[cidx] = (Tcompute)destSumFinal[0];
+                for (int i = 0; i < cur; ++i) {
+                    nram_f[i] = (float)(nram_src[i]);
+                }
+                __nram__ float srcMaxTmp[2];
+                __bang_argmax(srcMaxTmp, nram_f, cur);
+                float chunk_max = srcMaxTmp[0];
+
+                __bang_sub_scalar(nram_f, nram_f, chunk_max, cur);
+                __bang_active_exp_less_0(nram_f, nram_f, cur);
+
+                float chunk_sum = 0.0f;
+                if (cur >= wSize) {
+                    int segNum = cur / wSize;
+                    for (int strip = segNum / 2; strip > 0; strip = strip / 2) {
+                        for (int j = 0; j < strip; ++j) {
+                            __bang_add(nram_f + j * wSize, nram_f + j * wSize, nram_f + (j + strip) * wSize, wSize);
+                        }
+                    }
+                    __nram__ float destSumFinal[128];
+                    __bang_reduce_sum(destSumFinal, nram_f, wSize);
+                    chunk_sum = destSumFinal[0];
+                } else {
+                    __nram__ float destSumFinal[128];
+                    __bang_write_zero(destSumFinal, wSize);
+                    __memcpy(destSumFinal, nram_f, cur * sizeof(float), NRAM2NRAM);
+                    __bang_reduce_sum(destSumFinal, destSumFinal, wSize);
+                    chunk_sum = destSumFinal[0];
+                }
+
+                if (meta_count < META_LIMIT) {
+                    meta_max[meta_count] = chunk_max;
+                    meta_sum[meta_count] = chunk_sum;
+                    ++meta_count;
+                } else {
+                    float M0 = meta_max[0], S0 = meta_sum[0];
+                    float M1 = chunk_max, S1 = chunk_sum;
+                    if (M1 > M0) {
+                        meta_sum[0] = S1 + S0 * expf(M0 - M1);
+                        meta_max[0] = M1;
+                    } else {
+                        meta_sum[0] = S0 + S1 * expf(M1 - M0);
+                    }
+                    meta_count = 1;
+                }
             }
 
             processed += cur;
-            ++cidx;
-        }
+        } // end
 
-        Tcompute globalMax = -INFINITY;
-        Tcompute running = 0.0f;
-        for (int i = 0; i < cidx; ++i) {
-            Tcompute m = meta_max[i];
-            Tcompute s = meta_sum[i];
-            if (globalMax == -INFINITY) {
-                globalMax = m;
-                running = s;
+        // merge meta -> globalMax & totalSum
+        float globalMax = meta_max[0];
+        float totalSum = meta_sum[0];
+        for (int m = 1; m < meta_count; ++m) {
+            float mm = meta_max[m], ss = meta_sum[m];
+            if (mm > globalMax) {
+                totalSum = ss + totalSum * expf(globalMax - mm);
+                globalMax = mm;
             } else {
-                if (m > globalMax) {
-                    running = running * expf(globalMax - m) + s;
-                    globalMax = m;
-                } else {
-                    running = running + s * expf(m - globalMax);
-                }
+                totalSum = totalSum + ss * expf(mm - globalMax);
             }
         }
-        Tcompute global_sum = running + (Tcompute)1e-20f;
 
-        for (int i = 0; i < cidx; ++i) {
-            meta_sum[i] = (Tcompute)( expf(meta_max[i] - globalMax) / global_sum );
-        }
-
-        // PASS2: recompute
+        // PASS B: compute normalized exp and write final once
         processed = 0;
-        int write_idx = 0;
+        float inv_total = 1.0f / (totalSum + 1e-20f);
         while (processed < valid_len) {
             int cur = (valid_len - processed) < chunk_elems ? (valid_len - processed) : chunk_elems;
 
             if (x_stride_j == 1) {
-                __memcpy(chunk_buf, x + x_base + ptrdiff_t(processed) * x_stride_j, cur * sizeof(Tdata), GDRAM2NRAM);
+                __memcpy(nram_src, x + x_base + ptrdiff_t(processed), cur * sizeof(Tdata), GDRAM2NRAM);
             } else {
                 for (int i = 0; i < cur; ++i) {
-                    __memcpy(&chunk_buf[i], x + x_base + ptrdiff_t(processed + i) * x_stride_j, sizeof(Tdata), GDRAM2NRAM);
+                    __memcpy((char *)nram_src + i * sizeof(Tdata),
+                             x + x_base + ptrdiff_t(processed + i) * x_stride_j,
+                             sizeof(Tdata), GDRAM2NRAM);
                 }
             }
 
-            __bang_sub_scalar(chunk_buf, chunk_buf, (Tdata)meta_max[write_idx], cur);
-            __bang_active_exp_less_0(chunk_buf, chunk_buf, cur);
-            __bang_mul_scalar(chunk_buf, chunk_buf, (Tdata)meta_sum[write_idx], cur);
-
-            if (y_stride_j == 1) {
-                __memcpy(y + y_base + ptrdiff_t(processed) * y_stride_j, chunk_buf, cur * sizeof(Tdata), NRAM2GDRAM);
+            if constexpr (std::is_same<Tdata, float>::value) {
+                if (y_stride_j == 1) {
+                    // contiguous write
+                    for (int i = 0; i < cur; ++i) {
+                        float vv = nram_src[i];
+                        __nram__ float outv;
+                        outv = expf(vv - globalMax) * inv_total;
+                        __memcpy(y + y_base + ptrdiff_t(processed + i), &outv, sizeof(float), NRAM2GDRAM);
+                    }
+                } else {
+                    for (int i = 0; i < cur; ++i) {
+                        float vv = nram_src[i];
+                        __nram__ float outv;
+                        outv = expf(vv - globalMax) * inv_total;
+                        __memcpy(y + y_base + ptrdiff_t(processed + i) * y_stride_j, &outv, sizeof(float), NRAM2GDRAM);
+                    }
+                }
             } else {
                 for (int i = 0; i < cur; ++i) {
-                    __memcpy(y + y_base + ptrdiff_t(processed + i) * y_stride_j, &chunk_buf[i], sizeof(Tdata), NRAM2GDRAM);
+                    nram_f[i] = (float)(nram_src[i]);
+                }
+                __bang_sub_scalar(nram_f, nram_f, globalMax, cur);
+                __bang_active_exp_less_0(nram_f, nram_f, cur);
+                __bang_mul_scalar(nram_f, nram_f, inv_total, cur);
+
+                for (int i = 0; i < cur; ++i) {
+                    __nram__ Tdata outv;
+                    outv = (Tdata)(nram_f[i]);
+                    if (y_stride_j == 1) {
+                        __memcpy(y + y_base + ptrdiff_t(processed + i), &outv, sizeof(Tdata), NRAM2GDRAM);
+                    } else {
+                        __memcpy(y + y_base + ptrdiff_t(processed + i) * y_stride_j, &outv, sizeof(Tdata), NRAM2GDRAM);
+                    }
                 }
             }
 
             processed += cur;
-            ++write_idx;
-        }
+        } // end
 
-        // zero
         if (valid_len < int(width)) {
-            Tdata zero = (Tdata)0;
+            __nram__ Tdata z;
+            z = (Tdata)0;
             for (int c = valid_len; c < int(width); ++c) {
-                __memcpy(y + y_base + ptrdiff_t(c) * y_stride_j, &zero, sizeof(Tdata), NRAM2GDRAM);
+                __memcpy(y + y_base + ptrdiff_t(c) * y_stride_j, &z, sizeof(Tdata), NRAM2GDRAM);
             }
         }
     }

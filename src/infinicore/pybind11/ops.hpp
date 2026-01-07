@@ -3,6 +3,7 @@
 #include <pybind11/pybind11.h>
 
 #include "ops/add.hpp"
+#include "ops/all.hpp"
 #include "ops/attention.hpp"
 #include "ops/causal_softmax.hpp"
 #include "ops/embedding.hpp"
@@ -14,7 +15,11 @@
 #include "ops/rms_norm.hpp"
 #include "ops/rope.hpp"
 #include "ops/silu.hpp"
+#include "ops/sum.hpp"
 #include "ops/swiglu.hpp"
+#include "ops/topk.hpp"
+#include "ops/var.hpp"
+#include "ops/var_mean.hpp"
 
 namespace py = pybind11;
 
@@ -34,6 +39,11 @@ inline void bind(py::module &m) {
     bind_swiglu(m);
     bind_rope(m);
     bind_embedding(m);
+    bind_sum(m);
+    bind_topk(m);
+    bind_var(m);
+    bind_var_mean(m);
+    bind_all(m);
 }
 
 } // namespace infinicore::ops

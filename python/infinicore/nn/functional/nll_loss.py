@@ -12,7 +12,6 @@ def nll_loss(
     *,
     out=None,
 ) -> Tensor:
-    
     if infinicore.use_ntops and input.device.type in ("cuda", "musa"):
         return infinicore.ntops.torch.nll_loss(
             input, target, weight=weight, ignore_index=ignore_index, reduction=reduction
@@ -23,18 +22,15 @@ def nll_loss(
     if out is None:
         return Tensor(
             _infinicore.nll_loss(
-                input._underlying, 
-                target._underlying, 
-                weight_underlying, 
-                ignore_index
+                input._underlying, target._underlying, weight_underlying, ignore_index
             )
         )
-    
+
     _infinicore.nll_loss_(
-        input._underlying, 
-        target._underlying, 
-        weight_underlying, 
-        out._underlying, 
-        ignore_index
+        input._underlying,
+        target._underlying,
+        weight_underlying,
+        out._underlying,
+        ignore_index,
     )
     return out

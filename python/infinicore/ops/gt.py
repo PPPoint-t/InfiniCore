@@ -12,6 +12,6 @@ def gt(input: Tensor, other: Tensor | float, *, out: Tensor | None = None) -> Te
 
     if out is None:
         return Tensor(_infinicore.gt(input._underlying, other._underlying))
-    
+
     _infinicore.gt_(input._underlying, other._underlying, out._underlying)
     return out

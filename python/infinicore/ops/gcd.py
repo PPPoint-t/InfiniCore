@@ -2,6 +2,7 @@ import infinicore
 from infinicore.lib import _infinicore
 from infinicore.tensor import Tensor
 
+
 def gcd(input: Tensor, other: Tensor, *, out=None) -> Tensor:
     r"""Computes the element-wise greatest common divisor (GCD)."""
     

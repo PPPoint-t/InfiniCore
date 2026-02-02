@@ -2,6 +2,7 @@ import infinicore
 from infinicore.lib import _infinicore
 from infinicore.tensor import Tensor
 
+
 def gt(input: Tensor, other: Tensor | float, *, out: Tensor | None = None) -> Tensor:
     if infinicore.use_ntops and input.device.type in ("cuda", "musa"):
         return infinicore.ntops.torch.gt(input, other, out=out)

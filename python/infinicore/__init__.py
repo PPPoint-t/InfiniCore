@@ -138,6 +138,10 @@ __all__ = [
     "strided_empty",
     "strided_from_blob",
     "zeros",
+    "minimum",
+    "atan2",
+    "addcdiv",
+    "bucketize",
 ]
 
 use_ntops = False

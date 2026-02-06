@@ -3,28 +3,28 @@
 #include "infinicore/ops/bucketize.hpp"
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 #include <omp.h>
 #include <vector>
-#include <cstring>
 
 namespace infinicore::op::bucketize_impl::cpu {
 
 template <typename T>
 void bucketize_contiguous_kernel(const T *in_ptr, const T *bound_ptr, int64_t *out_ptr,
                                  size_t numel, size_t bound_len, bool right) {
-    const T* bound_end = bound_ptr + bound_len;
+    const T *bound_end = bound_ptr + bound_len;
 
 #pragma omp parallel for
     for (size_t i = 0; i < numel; ++i) {
         T val = in_ptr[i];
-        const T* result_ptr;
-        
+        const T *result_ptr;
+
         if (right) {
             result_ptr = std::upper_bound(bound_ptr, bound_end, val);
         } else {
             result_ptr = std::lower_bound(bound_ptr, bound_end, val);
         }
-        
+
         out_ptr[i] = static_cast<int64_t>(result_ptr - bound_ptr);
     }
 }
@@ -35,7 +35,7 @@ void bucketize_strided_kernel(const T *in_ptr, const T *bound_ptr, int64_t *out_
                               const Shape &out_shape, const Strides &out_strides,
                               size_t numel, size_t bound_len, bool right) {
     int ndim = out_shape.size();
-    const T* bound_end = bound_ptr + bound_len;
+    const T *bound_end = bound_ptr + bound_len;
 
 #pragma omp parallel for
     for (size_t i = 0; i < numel; ++i) {
@@ -52,7 +52,7 @@ void bucketize_strided_kernel(const T *in_ptr, const T *bound_ptr, int64_t *out_
         }
 
         T val = in_ptr[in_offset];
-        const T* result_ptr;
+        const T *result_ptr;
 
         if (right) {
             result_ptr = std::upper_bound(bound_ptr, bound_end, val);
@@ -79,13 +79,13 @@ void calculate_bucketize(Tensor input, Tensor boundaries, Tensor output, bool ri
     auto dtype = input->dtype();
 
     std::vector<float> sorted_boundaries(bound_len);
-    const float* raw_bound_ptr = reinterpret_cast<const float*>(boundaries_contig->data());
+    const float *raw_bound_ptr = reinterpret_cast<const float *>(boundaries_contig->data());
 
     std::memcpy(sorted_boundaries.data(), raw_bound_ptr, bound_len * sizeof(float));
 
     std::sort(sorted_boundaries.begin(), sorted_boundaries.end());
 
-    const float* bound_ptr = sorted_boundaries.data();
+    const float *bound_ptr = sorted_boundaries.data();
 
     bool in_out_contiguous = input->is_contiguous() && output->is_contiguous();
 
@@ -93,7 +93,7 @@ void calculate_bucketize(Tensor input, Tensor boundaries, Tensor output, bool ri
         int64_t *out_ptr = reinterpret_cast<int64_t *>(output->data());
         if (dtype == DataType::F32) {
             bucketize_contiguous_kernel<float>(
-                (float *)input->data(), 
+                (float *)input->data(),
                 bound_ptr,
                 out_ptr, numel, bound_len, right);
         } else if (dtype == DataType::F16) {
@@ -105,7 +105,7 @@ void calculate_bucketize(Tensor input, Tensor boundaries, Tensor output, bool ri
         int64_t *out_ptr = reinterpret_cast<int64_t *>(output->data());
         if (dtype == DataType::F32) {
             bucketize_strided_kernel<float>(
-                (float *)input->data(), 
+                (float *)input->data(),
                 bound_ptr,
                 out_ptr,
                 input->shape(), input->strides(), output->shape(), output->strides(),

@@ -19,6 +19,11 @@
 #include "ops/rope.hpp"
 #include "ops/silu.hpp"
 #include "ops/swiglu.hpp"
+#include "ops/group_norm.hpp"
+#include "ops/reshape.hpp"
+#include "ops/bitwise_xor.hpp"
+#include "ops/isclose.hpp"
+#include "ops/rrelu.hpp"
 
 namespace py = pybind11;
 
@@ -42,6 +47,11 @@ inline void bind(py::module &m) {
     bind_swiglu(m);
     bind_rope(m);
     bind_embedding(m);
+    bind_group_norm(m);
+    bind_reshape(m);
+    bind_bitwise_xor(m);
+    bind_isclose(m);
+    bind_rrelu(m);
 }
 
 } // namespace infinicore::ops

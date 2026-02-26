@@ -150,9 +150,9 @@ class OpTest(BaseOperatorTest):
         """PyTorch bitwise_xor implementation"""
         return torch.bitwise_xor(*args, **kwargs)
 
-    # def infinicore_operator(self, *args, **kwargs):
-    #     """InfiniCore bitwise_xor implementation"""
-    #     return infinicore.bitwise_xor(*args, **kwargs)
+    def infinicore_operator(self, *args, **kwargs):
+        """InfiniCore bitwise_xor implementation"""
+        return infinicore.bitwise_xor(*args, **kwargs)
 
 
 def main():

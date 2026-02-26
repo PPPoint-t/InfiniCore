@@ -54,6 +54,9 @@ from infinicore.ops.paged_caching import paged_caching
 from infinicore.ops.rearrange import rearrange
 from infinicore.ops.squeeze import squeeze
 from infinicore.ops.unsqueeze import unsqueeze
+from infinicore.ops.reshape import reshape
+from infinicore.ops.bitwise_xor import bitwise_xor
+from infinicore.ops.isclose import isclose
 from infinicore.tensor import (
     Tensor,
     empty,
@@ -134,6 +137,9 @@ __all__ = [
     "strided_empty",
     "strided_from_blob",
     "zeros",
+    "reshape",
+    "bitwise_xor",
+    "isclose",
 ]
 
 use_ntops = False
